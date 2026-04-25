@@ -40,17 +40,8 @@ addappid(123456, 0,"aa11111111111111") -- unlock game with appid 123456 depotKey
 
 ### Requirements
 - Windows 10/11
-- CMake 3.10+
+- CMake 3.20+
 - Visual Studio 2022 with MSVC (x64 toolchain)
-
-### Included prebuilt dependencies
-This repository expects these local files:
-- `include/Lua/lua54.lib`
-- `include/MinHook/libMinHook.x64.lib`
-
-### Toolchain compatibility note
-- This project is intended to be built with MSVC only.
-- Do not use Clang/lld or other toolchains for this repository.
 
 ### Quick build
 ```powershell

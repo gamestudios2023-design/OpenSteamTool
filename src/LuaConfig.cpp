@@ -1,6 +1,6 @@
 #include "dllmain.h"
 #include "LuaConfig.h"
-#include <Lua/include/lua.hpp>
+#include <lua.hpp>
 
 extern "C" {
     struct lua_State;

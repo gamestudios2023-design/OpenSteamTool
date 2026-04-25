@@ -6,11 +6,12 @@
 
 namespace SteamUI {
     void CoreHook();
-
+    void CoreUnhook();
 }
 
 namespace SteamClient {
     void CoreHook();
+    void CoreUnhook();
 }
 
 

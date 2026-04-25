@@ -4,24 +4,43 @@ setlocal
 REM Always run from the script directory.
 cd /d "%~dp0"
 
+REM ---------------------------------------------------------------------------
+REM Configurable build options
+REM   GENERATOR  - CMake generator (default: auto-detect)
+REM   ARCH       - Architecture for multi-config generators (default: x64)
+REM   CONFIGS    - Configurations to build, space-separated (default: Release Debug)
+REM ---------------------------------------------------------------------------
+if "%GENERATOR%"=="" (
+    where ninja >nul 2>nul
+    if not errorlevel 1 (
+        set "GENERATOR=Ninja Multi-Config"
+    ) else (
+        set "GENERATOR=Visual Studio 17 2022"
+    )
+)
+if "%ARCH%"=="" set "ARCH=x64"
+if "%CONFIGS%"=="" set "CONFIGS=Release Debug"
+
 REM clean the previous build cache
 if exist "build" (
     echo [INFO] Removing build directory...
     rmdir /s /q "build"
 )
 
-
-echo [INFO] Configuring project...
-cmake -S src -B build -G "Visual Studio 17 2022" -A x64
+echo [INFO] Configuring project with generator: %GENERATOR%
+echo "%GENERATOR%" | findstr /I /C:"Visual Studio" >nul
+if not errorlevel 1 (
+    cmake -S src -B build -G "%GENERATOR%" -A %ARCH%
+) else (
+    cmake -S src -B build -G "%GENERATOR%"
+)
 if errorlevel 1 goto :fail
 
-echo [INFO] Building Release...
-cmake --build build --config Release
-if errorlevel 1 goto :fail
-
-echo [INFO] Building Debug...
-cmake --build build --config Debug
-if errorlevel 1 goto :fail
+for %%C in (%CONFIGS%) do (
+    echo [INFO] Building %%C...
+    cmake --build build --config %%C
+    if errorlevel 1 goto :fail
+)
 
 echo [OK] Build completed successfully.
 exit /b 0

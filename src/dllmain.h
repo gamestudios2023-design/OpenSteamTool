@@ -13,15 +13,13 @@
 #include <memory>
 #include <format>
 
-
-#include <MinHook/include/MinHook.h>
 #include "steam.h"
 #include "LuaConfig.h"
 
- 
+
 inline HMODULE diversion_hMdoule = nullptr;
-inline char SteamInstallPath[MAX_PATH] = {}; 
-inline char SteamclientPath[MAX_PATH] = {}; 
+inline char SteamInstallPath[MAX_PATH] = {};
+inline char SteamclientPath[MAX_PATH] = {};
 inline char DiversionPath[MAX_PATH] = {};
 inline char LuaDir[MAX_PATH] = {};
 

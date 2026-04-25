@@ -1,10 +1,12 @@
 #include "dllmain.h"
 #include "HookManager.h"
 
+#include <detours.h>
+
 
 namespace SteamUI {
     using LoadModuleWithPath_t = HMODULE(*)(const char* inputPath, bool flags);
-    LoadModuleWithPath_t oLoadModuleWithPath = nullptr;
+    static LoadModuleWithPath_t oLoadModuleWithPath = nullptr;
 
     HMODULE __fastcall hkLoadModuleWithPath(const char* inputPath, bool flags) {
         // Always call the original function first.
@@ -18,25 +20,43 @@ namespace SteamUI {
 
     void CoreHook() {
         void* target = ByteSearch(GetModuleHandleA("steamui.dll"), LoadModuleWithPathPattern, LoadModuleWithPathMask);
-        if (target) {
-            if (MH_CreateHook(target, &hkLoadModuleWithPath, reinterpret_cast<void**>(&oLoadModuleWithPath)) == MH_OK) {
-                MH_EnableHook(target);
-            }
+        if (!target) {
+            return;
         }
+        oLoadModuleWithPath = reinterpret_cast<LoadModuleWithPath_t>(target);
+
+        DetourTransactionBegin();
+        DetourUpdateThread(GetCurrentThread());
+        DetourAttach(reinterpret_cast<PVOID*>(&oLoadModuleWithPath),
+                     reinterpret_cast<PVOID>(&hkLoadModuleWithPath));
+        DetourTransactionCommit();
+    }
+
+    void CoreUnhook() {
+        if (!oLoadModuleWithPath) {
+            return;
+        }
+        DetourTransactionBegin();
+        DetourUpdateThread(GetCurrentThread());
+        DetourDetach(reinterpret_cast<PVOID*>(&oLoadModuleWithPath),
+                     reinterpret_cast<PVOID>(&hkLoadModuleWithPath));
+        DetourTransactionCommit();
+        oLoadModuleWithPath = nullptr;
     }
 }
 
 namespace SteamClient {
-    using LoadPackage_t					=		bool(*)(PackageInfo*, uint8*, int, void*);
-    LoadPackage_t oLoadPackage = nullptr;
-    using CheckAppOwnership_t			=		bool(*)(void*, AppId_t, AppOwnership*);
-    CheckAppOwnership_t oCheckAppOwnership = nullptr;
-    using CUtlMemoryGrow_t				=		void*(*)(CUtlVector<uint32>* pVec, int grow_size);
-    CUtlMemoryGrow_t oCUtlMemoryGrow = nullptr;
+    using LoadPackage_t       = bool(*)(PackageInfo*, uint8*, int, void*);
+    using CheckAppOwnership_t = bool(*)(void*, AppId_t, AppOwnership*);
+    using CUtlMemoryGrow_t    = void*(*)(CUtlVector<uint32>* pVec, int grow_size);
+
+    static LoadPackage_t       oLoadPackage       = nullptr;
+    static CheckAppOwnership_t oCheckAppOwnership = nullptr;
+    static CUtlMemoryGrow_t    oCUtlMemoryGrow    = nullptr;
 
     bool __fastcall hkLoadPackage(PackageInfo* pPackageInfo, uint8* SHA_1_Hash, int ChangeNumber, void* p4) {
         bool result = oLoadPackage(pPackageInfo, SHA_1_Hash, ChangeNumber, p4);
-        if(pPackageInfo->PackageId == 0){
+        if (pPackageInfo->PackageId == 0) {
             // Insert Fake Game And Depot Into PackageInfo whose PackageId is 0
             std::vector<AppId_t> AddAppIdVector = LuaConfig::GetAllDepotIds();
             if (!AddAppIdVector.empty()) {
@@ -57,33 +77,49 @@ namespace SteamClient {
             pOwnershipInfo->PackageId = 0;
             pOwnershipInfo->ReleaseState = EAppReleaseState::Released;
             pOwnershipInfo->GameIDType = EGameIDType::k_EGameIDTypeApp;
-        	return true;
+            return true;
         }
         return result;
-
     }
 
     void CoreHook() {
-        // find CUtlMemoryGrow 
-        oCUtlMemoryGrow = reinterpret_cast<CUtlMemoryGrow_t>(ByteSearch(diversion_hMdoule, CUtlMemoryGrowPattern, CUtlMemoryGrowMask));
+        // Resolve CUtlMemoryGrow (called directly, not hooked).
+        oCUtlMemoryGrow = reinterpret_cast<CUtlMemoryGrow_t>(
+            ByteSearch(diversion_hMdoule, CUtlMemoryGrowPattern, CUtlMemoryGrowMask));
 
-        // hook LoadPackage
-        void* target = ByteSearch(diversion_hMdoule, LoadPackagePattern, LoadPackageMask);
-        if (target) {
-            if (MH_CreateHook(target, &hkLoadPackage, reinterpret_cast<void**>(&oLoadPackage)) == MH_OK) {
-                MH_EnableHook(target);
-            }
+        void* loadPackageTarget       = ByteSearch(diversion_hMdoule, LoadPackagePattern, LoadPackageMask);
+        void* checkAppOwnershipTarget = ByteSearch(diversion_hMdoule, CheckAppOwnershipPattern, CheckAppOwnershipMask);
+
+        oLoadPackage       = reinterpret_cast<LoadPackage_t>(loadPackageTarget);
+        oCheckAppOwnership = reinterpret_cast<CheckAppOwnership_t>(checkAppOwnershipTarget);
+
+        DetourTransactionBegin();
+        DetourUpdateThread(GetCurrentThread());
+        if (loadPackageTarget) {
+            DetourAttach(reinterpret_cast<PVOID*>(&oLoadPackage),
+                         reinterpret_cast<PVOID>(&hkLoadPackage));
         }
-
-        // hook CheckAppOwnership
-        target = ByteSearch(diversion_hMdoule, CheckAppOwnershipPattern, CheckAppOwnershipMask);
-        if (target) {
-            if (MH_CreateHook(target, &hkCheckAppOwnership, reinterpret_cast<void**>(&oCheckAppOwnership)) == MH_OK) {
-                MH_EnableHook(target);
-            }
+        if (checkAppOwnershipTarget) {
+            DetourAttach(reinterpret_cast<PVOID*>(&oCheckAppOwnership),
+                         reinterpret_cast<PVOID>(&hkCheckAppOwnership));
         }
-
+        DetourTransactionCommit();
     }
 
-}
+    void CoreUnhook() {
+        DetourTransactionBegin();
+        DetourUpdateThread(GetCurrentThread());
+        if (oLoadPackage) {
+            DetourDetach(reinterpret_cast<PVOID*>(&oLoadPackage),
+                         reinterpret_cast<PVOID>(&hkLoadPackage));
+        }
+        if (oCheckAppOwnership) {
+            DetourDetach(reinterpret_cast<PVOID*>(&oCheckAppOwnership),
+                         reinterpret_cast<PVOID>(&hkCheckAppOwnership));
+        }
+        DetourTransactionCommit();
 
+        oLoadPackage       = nullptr;
+        oCheckAppOwnership = nullptr;
+    }
+}

@@ -11,10 +11,11 @@ bool LoadDiversion()
     sprintf_s(SteamclientPath, MAX_PATH, "%s\\steamclient64.dll", SteamInstallPath);
     sprintf_s(DiversionPath, MAX_PATH, "%s\\bin\\diversion.dll", SteamInstallPath);
     sprintf_s(LuaDir, MAX_PATH, "%s\\config\\lua", SteamInstallPath);
-	
+    // copy steamclient64.dll to diversion.dll
+    CopyFileA(SteamclientPath, DiversionPath, FALSE);
 	diversion_hMdoule = LoadLibraryA(DiversionPath);
 	return diversion_hMdoule != nullptr;
-	
+
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, PVOID pvReserved)
@@ -22,15 +23,16 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, PVOID pvReserved)
 	if (dwReason == DLL_PROCESS_ATTACH)
 	{
 		DisableThreadLibraryCalls(hModule);
-        if (LoadDiversion() && MH_Initialize() == MH_OK) {
+        if (LoadDiversion()) {
             LuaConfig::ParseDirectory(std::string(LuaDir));
             SteamUI::CoreHook();
-			SteamClient::CoreHook();
+            SteamClient::CoreHook();
         }
     }
     else if (dwReason == DLL_PROCESS_DETACH)
     {
-        MH_Uninitialize();
+        SteamUI::CoreUnhook();
+        SteamClient::CoreUnhook();
     }
 
     return true;
