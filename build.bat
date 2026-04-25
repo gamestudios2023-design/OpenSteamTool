@@ -22,10 +22,10 @@ if "%ARCH%"=="" set "ARCH=x64"
 if "%CONFIGS%"=="" set "CONFIGS=Release Debug"
 
 REM clean the previous build cache
-if exist "build" (
-    echo [INFO] Removing build directory...
-    rmdir /s /q "build"
-)
+REM if exist "build" (
+REM     echo [INFO] Removing build directory...
+REM     rmdir /s /q "build"
+REM )
 
 echo [INFO] Configuring project with generator: %GENERATOR%
 echo "%GENERATOR%" | findstr /I /C:"Visual Studio" >nul

@@ -78,6 +78,20 @@ namespace LuaConfig{
         return DepotIds;
     }
 
+    std::vector<uint8> GetDecryptionKey(AppId_t DepotId) {
+        std::vector<uint8> keyBytes;
+        if (DepotKeySet.count(DepotId)) {
+            const std::string& keyStr = DepotKeySet[DepotId];
+            // Convert hex string to byte vector.
+            for (size_t i = 0; i < keyStr.length(); i += 2) {
+                std::string byteString = keyStr.substr(i, 2);
+                uint8 byte = (uint8)strtoul(byteString.c_str(), nullptr, 16);
+                keyBytes.push_back(byte);
+            }
+        }
+        return keyBytes;
+    }
+
     void ParseDirectory(const std::string& directory) {
         if (!Initialize()) {
             return;

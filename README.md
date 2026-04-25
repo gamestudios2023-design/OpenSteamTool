@@ -7,14 +7,8 @@ OpenSteamTool is a Windows DLL project built with CMake.
 ### Core Unlocks
 - Unlock an unlimited number of unowned games.
 - Unlock all DLCs for unowned games.
-
-### Bypasses & DRM Compatibility
-- Bypass Low Violence (LV) restrictions.
-- Bypass Region Locks.
-
-### Client & Architecture Support
-- Fully supports the official Steam client.
-- Compatible with both x86 and x64 game architectures.
+- Support auto load depot decryption keys from Lua config, no need to manually input them in `config.vdf` anymore.
+- Support auto manifest download thanks to RoGoing's manifest API (https://manifest.steam.run/).
 
 ## Future
 - Enable stats and achievements for unowned games.
@@ -29,12 +23,8 @@ OpenSteamTool is a Windows DLL project built with CMake.
 4. Lua example:
 ```lua
 addappid(123456) -- unlock game with appid 123456
-addappid(123456, 0,"aa11111111111111") -- unlock game with appid 123456 depotKey is "aa11111111111111"  but we don't use depotKey in this project,refer to the next point.      
+addappid(123456, 0,"111111") -- unlock game with appid 123456 depotKey is "111111" 
 ``` 
-5. Downloading still requires manifest and key:
-	- You can add the depot key in `config.vdf`.
-	- You need to find the manifest by yourself.
-	- This project focuses on unlock behavior only.
 
 ## Build
 

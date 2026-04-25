@@ -108,6 +108,7 @@ target_include_directories(OpenSteamTool PRIVATE
 target_link_libraries(OpenSteamTool PRIVATE
     lua_static
     detours
+    winhttp
 )
 
 # ---------------------------------------------------------------------------
