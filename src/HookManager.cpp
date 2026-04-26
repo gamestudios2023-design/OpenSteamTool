@@ -65,6 +65,50 @@ namespace SteamClient {
     static LoadDepotDecryptionKey_t oLoadDepotDecryptionKey = nullptr;
     static GetManifestRequestCode_t oGetManifestRequestCode = nullptr;
 
+    void PatchBinary() {
+        // family sharing and remote play Patches
+        static constexpr unsigned char kJmpPatchSharedLibraryStopPlaying[6] = { 0xE9, 0x31, 0x02, 0x00, 0x00, 0x90 };// jmp rel 0x00000231 + nop
+        static constexpr unsigned char kJmpPatchFamilyGroupRunningApp[6] = { 0xE9, 0x9D, 0x01, 0x00, 0x00, 0x90 };// jmp rel 0x0000019D + nop
+        static constexpr unsigned char kJmpPatchFamilyGroupRunningApp2[6] = { 0xE9, 0x31, 0x02, 0x00, 0x00, 0x90 };// jmp rel 0x00000231 + nop
+        static constexpr unsigned char kPatchBCanRemotePlayTogether[5] = { 0xB0, 0x01, 0xC3, 0x90, 0x90 };// mov al, 1; ret; nop; nop
+
+        if (!diversion_hMdoule) {
+            return;
+        }
+
+        void* sharedLibraryStopPlayingTarget = ByteSearch(
+            diversion_hMdoule,
+            SharedLibraryStopPlayingPatchPattern,
+            SharedLibraryStopPlayingPatchMask);
+        if (sharedLibraryStopPlayingTarget) {
+            PatchMemoryBytes(sharedLibraryStopPlayingTarget, kJmpPatchSharedLibraryStopPlaying, sizeof(kJmpPatchSharedLibraryStopPlaying));
+        }
+
+        void* familyGroupRunningAppTarget = ByteSearch(
+            diversion_hMdoule,
+            FamilyGroupRunningAppPatchPattern,
+            FamilyGroupRunningAppPatchMask);
+        if (familyGroupRunningAppTarget) {
+            PatchMemoryBytes(familyGroupRunningAppTarget, kJmpPatchFamilyGroupRunningApp, sizeof(kJmpPatchFamilyGroupRunningApp));
+        }
+
+        void* familyGroupRunningApp2Target = ByteSearch(
+            diversion_hMdoule,
+            FamilyGroupRunningApp2PatchPattern,
+            FamilyGroupRunningApp2PatchMask);
+        if (familyGroupRunningApp2Target) {
+            PatchMemoryBytes(familyGroupRunningApp2Target, kJmpPatchFamilyGroupRunningApp2, sizeof(kJmpPatchFamilyGroupRunningApp2));
+        }
+
+        void* bCanRemotePlayTogetherTarget = ByteSearch(
+            diversion_hMdoule,
+            BCanRemotePlayTogetherPatchPattern,
+            BCanRemotePlayTogetherPatchMask);
+        if (bCanRemotePlayTogetherTarget) {
+            PatchMemoryBytes(bCanRemotePlayTogetherTarget, kPatchBCanRemotePlayTogether, sizeof(kPatchBCanRemotePlayTogether));
+        }
+    }
+
     bool __fastcall hkLoadPackage(PackageInfo* pPackageInfo, uint8* SHA_1_Hash, int ChangeNumber, void* p4) {
         bool result = oLoadPackage(pPackageInfo, SHA_1_Hash, ChangeNumber, p4);
         if (pPackageInfo->PackageId == 0) {

@@ -6,6 +6,7 @@
 #define SEARCH_TYPE inline constexpr const char*
 
 void* ByteSearch(const HMODULE& module, const char* pattern, const char* mask, int matchIndex = 1);
+int __fastcall PatchMemoryBytes(void* pAddress, const void* pNewBytes, SIZE_T nSize);
 
 
 /* -------------------------------------------------------------------------- */
@@ -40,5 +41,21 @@ SEARCH_TYPE LoadDepotDecryptionKeyMask = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
 // 48 89 5C 24 18 55 56 57 41 55 41 57 48 8D 6C 24 A0
 SEARCH_TYPE GetManifestRequestCodePattern="\x48\x89\x5C\x24\x18\x55\x56\x57\x41\x55\x41\x57\x48\x8D\x6C\x24\xA0";
 SEARCH_TYPE GetManifestRequestCodeMask="xxxxxxxxxxxxxxxxx";
+
+// 0F 8E ?? ?? ?? ?? 48 89 BC 24 30 01 00 00
+SEARCH_TYPE SharedLibraryStopPlayingPatchPattern = "\x0F\x8E\x00\x00\x00\x00\x48\x89\xBC\x24\x30\x01\x00\x00";
+SEARCH_TYPE SharedLibraryStopPlayingPatchMask = "xx????xxxxxxxx";
+
+// 0F 84 9C 01 00 00 4C 8D 35 ?? ?? ?? ?? 0F 1F 40 00
+SEARCH_TYPE FamilyGroupRunningAppPatchPattern = "\x0F\x84\x9C\x01\x00\x00\x4C\x8D\x35\x00\x00\x00\x00\x0F\x1F\x40\x00";
+SEARCH_TYPE FamilyGroupRunningAppPatchMask = "xxxxxxxxx????xxxx";
+
+// 0F 84 ?? ?? ?? ?? 66 66 66 0F 1F 84 00 00 00 00 00 49 63 C6
+SEARCH_TYPE FamilyGroupRunningApp2PatchPattern = "\x0F\x84\x00\x00\x00\x00\x66\x66\x66\x0F\x1F\x84\x00\x00\x00\x00\x00\x49\x63\xC6";
+SEARCH_TYPE FamilyGroupRunningApp2PatchMask = "xx????xxxxxxxxxxxxxx";
+
+// 48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 48 8B ?? ?? ?? ?? ?? 48 8B F1 8B FA
+SEARCH_TYPE BCanRemotePlayTogetherPatchPattern = "\x48\x89\x5C\x24\x08\x48\x89\x74\x24\x10\x57\x48\x83\xEC\x20\x48\x8B\x00\x00\x00\x00\x00\x48\x8B\xF1\x8B\xFA";
+SEARCH_TYPE BCanRemotePlayTogetherPatchMask = "xxxxxxxxxxxxxxxxx?????xxxxx";
 
 #endif // BYTESEARCH_H

@@ -26,6 +26,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, PVOID pvReserved)
         if (LoadDiversion()) {
             LuaConfig::ParseDirectory(std::string(LuaDir));
             SteamUI::CoreHook();
+            SteamClient::PatchBinary();
             SteamClient::CoreHook();
         }
     }

@@ -25,3 +25,22 @@ void* ByteSearch(const HMODULE& module, const char* pattern, const char* mask, i
     }
     return nullptr;
 }
+
+int PatchMemoryBytes(void* pAddress, const void* pNewBytes, SIZE_T nSize)
+{
+    if (!pAddress || !pNewBytes || nSize == 0) {
+        return 0;
+    }
+
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(pAddress, nSize, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+        return 0;
+    }
+
+    memcpy(pAddress, pNewBytes, nSize);
+    FlushInstructionCache(GetCurrentProcess(), pAddress, nSize);
+
+    DWORD tempProtect = 0;
+    VirtualProtect(pAddress, nSize, oldProtect, &tempProtect);
+    return 1;
+}
