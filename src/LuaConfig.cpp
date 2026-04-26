@@ -96,15 +96,24 @@ namespace LuaConfig{
         if (!Initialize()) {
             return;
         }
-        // Iterate all files in the directory and execute .lua scripts.
-        for (const auto& entry : std::filesystem::directory_iterator(directory)) {
-            if (entry.is_regular_file()) {
-                const auto& path = entry.path();
-                if (path.extension() == ".lua") {
-                    // Load and execute each Lua script.
-                    if (luaL_dofile(g_lua_state, path.string().c_str()) != LUA_OK) {
-                        // Clear Lua error object from the stack and continue.
-                        lua_pop(g_lua_state, 1);
+        // catch error and create lua folder if its not there
+        std::error_code ec;
+        if (!std::filesystem::exists(directory, ec)) {
+            std::filesystem::create_directories(directory, ec);
+        }
+        // check it exists and is a directory before iterating
+        if (std::filesystem::exists(directory, ec) && std::filesystem::is_directory(directory, ec)) {
+            // Iterate all files in the directory and execute .lua scripts.
+            for (const auto& entry : std::filesystem::directory_iterator(directory, ec)) {
+                if (ec) break;
+                if (entry.is_regular_file()) {
+                    const auto& path = entry.path();
+                    if (path.extension() == ".lua") {
+                        // Load and execute each Lua script.
+                        if (luaL_dofile(g_lua_state, path.string().c_str()) != LUA_OK) {
+                            // Clear Lua error object from the stack and continue.
+                            lua_pop(g_lua_state, 1);
+                        }
                     }
                 }
             }
