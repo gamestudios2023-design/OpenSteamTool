@@ -58,4 +58,8 @@ SEARCH_TYPE FamilyGroupRunningApp2PatchMask = "xx????xxxxxxxxxxxxxx";
 SEARCH_TYPE BCanRemotePlayTogetherPatchPattern = "\x48\x89\x5C\x24\x08\x48\x89\x74\x24\x10\x57\x48\x83\xEC\x20\x48\x8B\x00\x00\x00\x00\x00\x48\x8B\xF1\x8B\xFA";
 SEARCH_TYPE BCanRemotePlayTogetherPatchMask = "xxxxxxxxxxxxxxxxx?????xxxxx";
 
+//89 48 20 48 8B 4B 18 89 50 10 48 89 48 18
+SEARCH_TYPE AddAccessTokenPattern = "\x89\x48\x20\x48\x8B\x4B\x18\x89\x50\x10\x48\x89\x48\x18";
+SEARCH_TYPE AddAccessTokenMask = "xxxxxxxxxxxxxx";
+
 #endif // BYTESEARCH_H

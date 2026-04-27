@@ -65,6 +65,8 @@ namespace SteamClient {
     static LoadDepotDecryptionKey_t oLoadDepotDecryptionKey = nullptr;
     static GetManifestRequestCode_t oGetManifestRequestCode = nullptr;
 
+    static uint8_t* addAccessTokenTarget = nullptr;
+
     void PatchBinary() {
         // family sharing and remote play Patches
         static constexpr unsigned char kJmpPatchSharedLibraryStopPlaying[6] = { 0xE9, 0x31, 0x02, 0x00, 0x00, 0x90 };// jmp rel 0x00000231 + nop
@@ -235,6 +237,44 @@ namespace SteamClient {
         return oGetManifestRequestCode(pObject, AppId, DepotId, manifest_gid, branch, outRequestCode);
     }
 
+
+    // VEH Handle For Software Breakpoint And Single Step to Add Access Token Support
+    // TODO: maybe we should use inline hook this instruction instead of using a breakpoint, which is a bit hacky and may cause performance issues
+    LONG CALLBACK VEH_Handler(PEXCEPTION_POINTERS pExInfo) {
+      PCONTEXT ctx = pExInfo->ContextRecord;
+
+      if (pExInfo->ExceptionRecord->ExceptionCode == EXCEPTION_BREAKPOINT
+          && ctx->Rip == (uint64_t)addAccessTokenTarget) // address of add_access_token instruction
+      {
+        // original instruction: 48 89 48 18  mov [rax+18h], rcx 
+        
+        // read appid from [rax+20h]
+        uint32_t appid = *(uint32_t*)(ctx->Rax + 0x20);
+
+        // replace rcx with our access token if it not zero, otherwise keep the original value
+        if(uint64_t access_token = LuaConfig::GetAccessToken(appid)) {
+            ctx->Rcx = access_token;
+        }
+
+        // restore original first instruction byte 48 and set TF for single step to reapply the breakpoint after executing the original instruction
+        *(uint8_t*)addAccessTokenTarget = 0x48;
+        ctx->EFlags |= 0x100; // TF
+
+        return EXCEPTION_CONTINUE_EXECUTION;
+      }
+
+      if (pExInfo->ExceptionRecord->ExceptionCode == EXCEPTION_SINGLE_STEP
+          && ctx->Rip == (uint64_t)(addAccessTokenTarget + 4))  // address of the next instruction after add_access_token
+      {
+          // restore the breakpoint for the next time
+          *(uint8_t*)addAccessTokenTarget = 0xCC;
+
+          return EXCEPTION_CONTINUE_EXECUTION;
+      }
+
+      return EXCEPTION_CONTINUE_SEARCH;
+  }
+
     void CoreHook() {
         // Resolve CUtlMemoryGrow (called directly, not hooked).
         oCUtlMemoryGrow = reinterpret_cast<CUtlMemoryGrow_t>(ByteSearch(diversion_hMdoule, CUtlMemoryGrowPattern, CUtlMemoryGrowMask));
@@ -268,6 +308,17 @@ namespace SteamClient {
                         reinterpret_cast<PVOID>(&hkGetManifestRequestCode));
         }
         DetourTransactionCommit();
+
+        // Software breakpoint for add_access_token 
+        addAccessTokenTarget = static_cast<uint8_t*>(ByteSearch(diversion_hMdoule, AddAccessTokenPattern, AddAccessTokenMask));
+        if (addAccessTokenTarget) {
+            addAccessTokenTarget += 10; // offset to the instruction we want to break on
+            DWORD oldProtect;
+            VirtualProtect(addAccessTokenTarget, 1, PAGE_EXECUTE_READWRITE, &oldProtect);
+            *(uint8_t*)addAccessTokenTarget = 0xCC; // int3
+            // we can not restore the original page protection here because we will continue to execute code at this address and we need to keep it writable for our VEH handler
+            AddVectoredExceptionHandler(1, VEH_Handler);
+        }
     }
 
     void CoreUnhook() {
