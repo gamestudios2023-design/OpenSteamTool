@@ -1709,6 +1709,43 @@ enum EMsg {
 	k_EMsgClientPendingGameLaunchResponse = 12301,
 };
 
+enum EAppState {
+	k_EAppStateInvalid            = 0x00000000,
+	k_EAppStateUninstalled        = 0x00000001,
+	k_EAppStateUpdateRequired     = 0x00000002,
+	k_EAppStateFullyInstalled     = 0x00000004,
+	k_EAppStateUpdateQueued       = 0x00000008,
+	k_EAppStateUpdateOptional     = 0x00000010,
+	k_EAppStateFilesMissing       = 0x00000020,
+	k_EAppStateSharedOnly         = 0x00000040,
+	k_EAppStateFilesCorrupt       = 0x00000080,
+	k_EAppStateUpdateRunning      = 0x00000100,
+	k_EAppStateUpdatePaused       = 0x00000200,
+	k_EAppStateUpdateStarted      = 0x00000400,
+	k_EAppStateUninstalling       = 0x00000800,
+	k_EAppStateBackupRunning      = 0x00001000,
+	k_EAppStateAppRunning         = 0x00002000,
+	k_EAppStateComponentInUse     = 0x00004000,
+	k_EAppStateMovingFolder       = 0x00008000,
+	k_EAppStateTerminating        = 0x00010000,
+	k_EAppStatePrefetchingInfo    = 0x00020000,
+	k_EAppStatePeerServer         = 0x00040000,
+	k_EAppStateUpdateDisabled     = 0x00080000,
+	k_EAppStateReconfiguring      = 0x00100000,
+	k_EAppStateVerifyingInstalled = 0x00200000,
+	k_EAppStatePreallocating      = 0x00400000,
+	k_EAppStateDownloading        = 0x00800000,
+	k_EAppStateStaging            = 0x01000000,
+	k_EAppStateCommitting         = 0x02000000,
+	k_EAppStateVerifyingStaged    = 0x04000000,
+	k_EAppStateStopping           = 0x08000000,
+};
 
+struct CSteamApp{
+	void** vfptr;
+	int32 StateFlags;
+	AppId_t AppID;
+	// ...
+};
 
 #endif // STEAM_H

@@ -10,6 +10,7 @@ namespace LuaConfig{
     static lua_State* g_lua_state = nullptr;
     std::unordered_map<AppId_t, std::string>DepotKeySet{};
     std::unordered_map<AppId_t, uint64_t>AccessTokenSet{};
+    std::unordered_set<AppId_t> PinnedApps{};
 
     static int lua_addappid(lua_State* L) {
         // addappid(integer, integer, string)
@@ -79,6 +80,29 @@ namespace LuaConfig{
         return 0;
     }
 
+    static int lua_pinApp(lua_State* L) {
+        // pinApp(integer)
+        int argc = lua_gettop(L);
+        // Validate argument count and required argument types.
+        if (argc == 0) {
+            return luaL_error(L, "");
+        }
+        if (!lua_isinteger(L, 1)) {
+            return luaL_error(L, "");
+        }
+
+        // Read the first argument as appid.
+        lua_Integer value = lua_tointeger(L, 1);
+        // Ensure the value fits into uint32_t range.
+        if (value < 0 || value > UINT32_MAX)
+            return luaL_error(L, "");
+        AppId_t AppId = (uint32_t)value;
+        
+        PinnedApps.insert(AppId);
+
+        return 0;
+    }
+
     static bool Initialize() {
         if (g_lua_state)
             return true; 
@@ -90,6 +114,7 @@ namespace LuaConfig{
         // Register custom helper functions for scripts.
         lua_register(g_lua_state, "addappid", lua_addappid);
         lua_register(g_lua_state, "addtoken", lua_addtoken);
+        lua_register(g_lua_state, "pinApp", lua_pinApp);
         return true;
     }
     
@@ -131,6 +156,10 @@ namespace LuaConfig{
             return AccessTokenSet[AppId];
         }
         return 0;
+    }
+    
+    bool pinApp(AppId_t AppId) {
+        return PinnedApps.count(AppId);
     }
 
     void ParseDirectory(const std::string& directory) {

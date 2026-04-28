@@ -62,4 +62,8 @@ SEARCH_TYPE BCanRemotePlayTogetherPatchMask = "xxxxxxxxxxxxxxxxx?????xxxxx";
 SEARCH_TYPE AddAccessTokenPattern = "\x89\x48\x20\x48\x8B\x4B\x18\x89\x50\x10\x48\x89\x48\x18";
 SEARCH_TYPE AddAccessTokenMask = "xxxxxxxxxxxxxx";
 
+//48 89 5C 24 10 48 89 6C 24 18 48 89 7C 24 20 41 56 48 81 EC 90 04 00 00
+SEARCH_TYPE ModifyStateFlagsPattern = "\x48\x89\x5C\x24\x10\x48\x89\x6C\x24\x18\x48\x89\x7C\x24\x20\x41\x56\x48\x81\xEC\x90\x04\x00\x00";
+SEARCH_TYPE ModifyStateFlagsMask = "xxxxxxxxxxxxxxxxxxxxxxx";
+
 #endif // BYTESEARCH_H

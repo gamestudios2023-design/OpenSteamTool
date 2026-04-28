@@ -52,11 +52,12 @@ namespace SteamUI {
 namespace SteamClient {
     
     using CUtlMemoryGrow_t              =           void*(*)(CUtlVector<uint32>* pVec, int grow_size);
-    using LoadPackage_t                 =           bool(*)(PackageInfo*, uint8*, int, void*);
+    using LoadPackage_t                 =           bool(*)(PackageInfo*, uint8*, int32, void*);
     using CheckAppOwnership_t           =           bool(*)(void*, AppId_t, AppOwnership*);
     using GetDecryptionKey_t            =           EResult(*)(void*,uint32,AppId_t,CUtlBuffer*);
     using LoadDepotDecryptionKey_t		=		    int32(*)(void*, uint32, char*, char*, uint32);
     using GetManifestRequestCode_t      =           EResult(*)(void*, AppId_t, AppId_t,uint64,const char*, uint64*);
+    using ModifyStateFlags_t            =           bool(*)(CSteamApp*, int32, int32,int32);
 
     static CUtlMemoryGrow_t    oCUtlMemoryGrow    = nullptr;
     static LoadPackage_t       oLoadPackage       = nullptr;
@@ -64,7 +65,7 @@ namespace SteamClient {
     static GetDecryptionKey_t  oGetDecryptionKey  = nullptr;
     static LoadDepotDecryptionKey_t oLoadDepotDecryptionKey = nullptr;
     static GetManifestRequestCode_t oGetManifestRequestCode = nullptr;
-
+    static ModifyStateFlags_t oModifyStateFlags = nullptr;
     static uint8_t* addAccessTokenTarget = nullptr;
 
     void PatchBinary() {
@@ -111,7 +112,7 @@ namespace SteamClient {
         }
     }
 
-    bool __fastcall hkLoadPackage(PackageInfo* pPackageInfo, uint8* SHA_1_Hash, int ChangeNumber, void* p4) {
+    bool __fastcall hkLoadPackage(PackageInfo* pPackageInfo, uint8* SHA_1_Hash, int32 ChangeNumber, void* p4) {
         bool result = oLoadPackage(pPackageInfo, SHA_1_Hash, ChangeNumber, p4);
         if (pPackageInfo->PackageId == 0) {
             // Insert Fake Game And Depot Into PackageInfo whose PackageId is 0
@@ -237,6 +238,28 @@ namespace SteamClient {
         return oGetManifestRequestCode(pObject, AppId, DepotId, manifest_gid, branch, outRequestCode);
     }
 
+    // this is a ligthweight hook that only modify the state flags to prevent steam from updating
+    bool __fastcall hkModifyStateFlags(CSteamApp* pApp, int32 flagsToSet, int32 flagsToClear, int32 a4) {
+        if (LuaConfig::pinApp(pApp->AppID)) {
+            // only modify state flags for pinned and fully installed apps
+            // however,it leads to some bad side effects like we can not verify instealled successfully if the app has a new version
+            // TODO: we may need to hook the bind manifest function
+            if(pApp->StateFlags & k_EAppStateFullyInstalled){
+                flagsToSet &= ~(k_EAppStateUpdateRequired |
+                                k_EAppStateUpdateQueued   |
+                                k_EAppStateUpdateRunning  |
+                                k_EAppStateUpdateStarted);
+
+                flagsToClear |= (k_EAppStateUpdateRequired |
+                                k_EAppStateUpdateQueued   |
+                                k_EAppStateUpdateRunning  |
+                                k_EAppStateUpdateStarted);
+            
+            }
+            
+        }
+        return oModifyStateFlags(pApp, flagsToSet, flagsToClear, a4);
+    }
 
     // VEH Handle For Software Breakpoint And Single Step to Add Access Token Support
     // TODO: maybe we should use inline hook this instruction instead of using a breakpoint, which is a bit hacky and may cause performance issues
@@ -283,11 +306,13 @@ namespace SteamClient {
         void* checkAppOwnershipTarget = ByteSearch(diversion_hMdoule, CheckAppOwnershipPattern, CheckAppOwnershipMask);
         void* loadDepotDecryptionKeyTarget  = ByteSearch(diversion_hMdoule, LoadDepotDecryptionKeyPattern, LoadDepotDecryptionKeyMask);
         void* getManifestRequestCodeTarget = ByteSearch(diversion_hMdoule, GetManifestRequestCodePattern, GetManifestRequestCodeMask);
+        void* modifyStateFlagsTarget = ByteSearch(diversion_hMdoule, ModifyStateFlagsPattern, ModifyStateFlagsMask);
 
         oLoadPackage       = reinterpret_cast<LoadPackage_t>(loadPackageTarget);
         oCheckAppOwnership = reinterpret_cast<CheckAppOwnership_t>(checkAppOwnershipTarget);
         oLoadDepotDecryptionKey  = reinterpret_cast<LoadDepotDecryptionKey_t>(loadDepotDecryptionKeyTarget);
         oGetManifestRequestCode = reinterpret_cast<GetManifestRequestCode_t>(getManifestRequestCodeTarget);
+        oModifyStateFlags = reinterpret_cast<ModifyStateFlags_t>(modifyStateFlagsTarget);
 
         DetourTransactionBegin();
         DetourUpdateThread(GetCurrentThread());
@@ -306,6 +331,10 @@ namespace SteamClient {
         if (getManifestRequestCodeTarget) {
             DetourAttach(reinterpret_cast<PVOID*>(&oGetManifestRequestCode),
                         reinterpret_cast<PVOID>(&hkGetManifestRequestCode));
+        }
+        if (modifyStateFlagsTarget) {
+            DetourAttach(reinterpret_cast<PVOID*>(&oModifyStateFlags),
+                         reinterpret_cast<PVOID>(&hkModifyStateFlags));
         }
         DetourTransactionCommit();
 
@@ -340,11 +369,16 @@ namespace SteamClient {
             DetourDetach(reinterpret_cast<PVOID*>(&oGetManifestRequestCode),
                         reinterpret_cast<PVOID>(&hkGetManifestRequestCode));
         }
+        if (oModifyStateFlags) {
+            DetourDetach(reinterpret_cast<PVOID*>(&oModifyStateFlags),
+                         reinterpret_cast<PVOID>(&hkModifyStateFlags));
+        }
         DetourTransactionCommit();
 
         oLoadPackage       = nullptr;
         oCheckAppOwnership = nullptr;
         oLoadDepotDecryptionKey  = nullptr;
         oGetManifestRequestCode = nullptr;
+        oModifyStateFlags = nullptr;
     }
 }

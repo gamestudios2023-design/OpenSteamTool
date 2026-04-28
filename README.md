@@ -9,12 +9,14 @@ OpenSteamTool is a Windows DLL project built with CMake.
 - Unlock all DLCs for unowned games.
 - Support auto load depot decryption keys from Lua config, no need to manually input them in `config.vdf` anymore.
 - Support auto manifest download thanks to RoGoing's manifest API (https://manifest.steam.run/).
-- Supports downloading protected games or DLCs that require an access token.
+- Support downloading protected games or DLCs that require an access token.
+- Support a lightweight way to disable update for specific games(however,it leads to some bad side effects like we can not verify instealled successfully if the app has a new version).
   
 ### Family Sharing and Remote Play
 - Bypass Steam Family Sharing restrictions, allowing shared games to be played without limitations.
 
 ## Future
+- Bind manifest to disable update for specific games
 - Enable stats and achievements for unowned games.
 - Compatible with games protected by Denuvo and SteamStub.
 - Steam Cloud synchronization support.
@@ -30,6 +32,8 @@ addappid(1361510) -- unlock game with appid 1361510
 addappid(1361511, 0,"5954562e7f5260400040a818bc29b60b335bb690066ff767e20d145a3b6b4af0") -- unlock game with appid 1361511 depotKey is "5954562e7f5260400040a818bc29b60b335bb690066ff767e20d145a3b6b4af0" 
 
 addtoken(1361510,"2764735786934684318") -- add access token ("2764735786934684318") for game with appid 1361510 
+
+pinApp(1361510) -- pin game with appid 1361510 to prevent it from being updated
 ``` 
 
 ## Build
