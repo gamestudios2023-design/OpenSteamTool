@@ -21,7 +21,7 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure
-        run: cmake -S src -B build -G Ninja
+        run: cmake -S src -B build -G "Ninja Multi-Config"
 
       - name: Build Release
         run: cmake --build build --config Release
