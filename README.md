@@ -15,9 +15,13 @@ OpenSteamTool is a Windows DLL project built with CMake.
 ### Family Sharing and Remote Play
 - Bypass Steam Family Sharing restrictions, allowing shared games to be played without limitations.
 
+### Compatible with games protected by Denuvo and SteamStub
+- For AppTicket and ETicket: in `HKEY_CURRENT_USER\Software\Valve\Steam\Apps\{AppId}`, both `AppTicket` and `ETicket` are `REG_BINARY` values (case-insensitive).
+- SteamID priority: read `SteamID` as `REG_SZ` (numeric-only) first; if missing, parse from `AppTicket`.
+
 ## Future
 - Enable stats and achievements for unowned games.
-- Compatible with games protected by Denuvo and SteamStub.
+- For games protected by Denuvo and SteamStub, find a safe timing to switch `GetSteamID` (see `src/Hook/Hooks_IPC.cpp#Handler_IClientUser_GetSteamID` TODO) so save files are not affected.
 - Steam Cloud synchronization support.(This is a huge project)
 
 ## Usage

@@ -31,7 +31,6 @@ static DWORD WINAPI InitThread(LPVOID param) {
 
     LuaConfig::ParseDirectory(std::string(LuaDir));
     SteamUI::CoreHook();
-    SteamClient::PatchBinary();
     SteamClient::CoreHook();
     LOG_INFO("OpenSteamTool init complete");
     return 0;

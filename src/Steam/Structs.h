@@ -32,6 +32,17 @@ struct CUtlBuffer{
 	typedef bool (CUtlBuffer::*UtlBufferOverflowFunc_t)( int32 nSize );
 	UtlBufferOverflowFunc_t m_GetOverflowFunc;
 	UtlBufferOverflowFunc_t m_PutOverflowFunc;
+
+	// Direct base/size helpers — match the names the original Valve
+	// CUtlBuffer exposes so call sites read naturally.
+	uint8* Base()             { return m_Memory.m_pMemory; }
+	const uint8* Base() const { return m_Memory.m_pMemory; }
+	int32 TellPut() const     { return m_Put; }
+	int32 TellGet() const     { return m_Get; }
+	// Debug helper
+	std::string DebugString() const{
+		return "m_Get:" + std::to_string(m_Get) + " , m_Put:" + std::to_string(m_Put) + " , m_nOffset:" + std::to_string(m_nOffset)+ " , m_flags:" + std::to_string(m_flags);
+	}
 };
 
 struct PackageInfo
@@ -144,3 +155,13 @@ struct IKeyValuesSystem {
 	const char* GetKeyName(int symbol)       { return GetStringForSymbol(symbol); }
 };
 using KeyValuesSystemSteam_t = IKeyValuesSystem* (*)();
+
+struct CNetPacket
+{
+	HCONNECTION m_hConnection;
+	uint8* m_pubData;
+	uint32 m_cubData;
+	int32 m_cRef;
+	uint8* m_pubNetworkBuffer;
+	CNetPacket* m_pNext;
+};

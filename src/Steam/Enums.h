@@ -1687,3 +1687,91 @@ enum EKeyValuesType : unsigned int
 	KV_TYPE_CHAINED = 9,       
 	KV_TYPE_INT64 = 10,
 };
+
+enum EWebSocketOpCode :char
+{
+	k_eWebSocketOpCode_Continuation = 0x00,
+	k_eWebSocketOpCode_Text = 0x01,
+	k_eWebSocketOpCode_Binary = 0x02,
+
+	k_eWebSocketOpCode_Close = 0x08,
+	k_eWebSocketOpCode_Ping = 0x09,
+	k_eWebSocketOpCode_Pong = 0x0A,
+};
+
+// IPC command codes used by CIPCServer::ProcessMessage. The first byte of an
+// IPC request packet identifies which kind of operation the client is making.
+enum class EIPCCommand : uint8
+{
+	InterfaceCall  = 1,  // call into a Steam interface (IClientUser, IClientApps, ...)
+	FlushCallbacks = 2,  // SerializeCallbacks
+	Destroy        = 5,
+	Handshake      = 9,  // SteamApi_Init
+};
+
+// Interface IDs used in the second byte of an InterfaceCall packet to select
+// which steamclient interface the funcHash belongs to
+enum class EIPCInterface : uint8
+{
+	IClientUser                          = 1,
+	IClientGameServer                    = 2,   
+	IClientFriends                       = 3,
+	IClientUtils                         = 4,
+	IClientBilling                       = 5,
+	IClientMatchmaking                   = 6,
+	// 7 = unused
+	IClientApps                          = 8,
+	// 9  = unused
+	// 10 = unused
+	IClientUserStats                     = 11,
+	IClientNetworking                    = 12,
+	IClientRemoteStorage                 = 13,
+	// 14 = unused
+	// 15 = unused
+	IClientDepotBuilder                  = 16,
+	IClientAppManager                    = 17,
+	IClientConfigStore                   = 18,
+	IClientGameCoordinator               = 19,
+	IClientGameServerStats               = 20,
+	IClientGameStats                     = 21,
+	IClientHTTP                          = 22,
+	IClientScreenshots                   = 23,
+	IClientAudio                         = 24,
+	IClientUnifiedMessages               = 25,
+	IClientStreamLauncher                = 26,
+	IClientParentalSettings              = 27,
+	// 28 = unused
+	IClientNetworkDeviceManager          = 29,
+	IClientMusic                         = 30,
+	IClientRemoteClientManager           = 31,
+	IClientUGC                           = 32,
+	IClientStreamClient                  = 33,
+	IClientProductBuilder                = 34,
+	IClientShortcuts                     = 35,
+	// 36 = unused
+	IClientGameNotifications             = 37,
+	IClientVideo                         = 38,
+	IClientInventory                     = 39,
+	IClientVR                            = 40,
+	IClientControllerSerialized          = 41,
+	IClientAppDisableUpdate              = 42,
+	// 43 = unused
+	IClientSharedConnection              = 44,
+	IClientShader                        = 45,
+	IClientNetworkingSocketsSerialized   = 46,
+	// 47 = unused
+	IClientCompat                        = 48,
+	IClientParties                       = 49,
+	IClientNetworkingUtilsSerialized     = 50,
+	// 51 = unused
+	IClientRemotePlay                    = 52,
+	IClientGameServerPacketHandler       = 53,
+	IClientSystemManager                 = 54,
+	// 55 = unused
+	// 56 = unused
+	IClientSystemPerfManager             = 57,
+	IClientSystemDockManager             = 58,
+	IClientSystemAudioManager            = 59,
+	IClientSystemDisplayManager          = 60,
+	IClientTimeline                      = 61,
+};

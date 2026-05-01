@@ -24,6 +24,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(Lua)
 include(Detours)
 include(Spdlog)
+include(Nanopb)
 
 # ---------------------------------------------------------------------------
 # OpenSteamTool — the hook DLL injected into Steam (always 64-bit).
@@ -44,24 +45,29 @@ add_library(OpenSteamTool SHARED
     Hook/Hooks_AppState.cpp
     Hook/Hooks_AppTicket.cpp
     Hook/Hooks_Decryption.cpp
+    Hook/Hooks_IPC.cpp
     Hook/Hooks_KeyValues.cpp
     Hook/Hooks_Manifest.cpp
     Hook/Hooks_Misc.cpp
+    Hook/Hooks_NetPacket.cpp
     Hook/Hooks_SteamUI.cpp
     Hook/Hooks_Package.cpp
-    Hook/Patches.cpp
+
+    # nanopb pre-generated sources (regenerate with nanopb_generator.py if .proto changes)
+    proto/steam_messages.pb.c
 )
 
 # Header search path: src root path
 target_include_directories(OpenSteamTool PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
-
+    "${CMAKE_CURRENT_SOURCE_DIR}/proto"
 )
 
 target_link_libraries(OpenSteamTool PRIVATE
     lua_static
     detours
     winhttp
+    nanopb
     $<$<CONFIG:Debug>:spdlog::spdlog>
 )
 

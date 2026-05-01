@@ -13,6 +13,6 @@ namespace AppTicket {
     // Returns an empty vector when no ticket is available.
     std::vector<uint8_t> GetEncryptedTicketFromRegistry(AppId_t appId);
 
-    //Get spoof steamID according to many factors
+    //Get spoof steamID From the cached AppOwnershipTicket for the given AppId.
     uint64_t GetSpoofSteamID(AppId_t appId);
 }

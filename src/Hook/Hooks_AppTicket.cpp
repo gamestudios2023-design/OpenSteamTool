@@ -14,6 +14,7 @@ namespace {
                     if (!ticket.empty() && *pcbValue > ticket.size()) {
                         memcpy(pchValue, ticket.data(), ticket.size());
                         *pcbValue = static_cast<uint32>(ticket.size());
+                        LOG_DEBUG("Provided AppOwnershipTicket for AppId {} ({} bytes)", appid, *pcbValue);
                         return true;
                     }
                 }

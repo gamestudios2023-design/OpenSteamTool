@@ -87,7 +87,9 @@ namespace Hooks_Misc {
             LOG_WARN("GetAppIDForCurrentPipe called before capture — returning 0");
             return 0;
         }
-        return g_oGetAppIDForCurrentPipe(g_steamEngine);
+        auto appid =  g_oGetAppIDForCurrentPipe(g_steamEngine);
+        LOG_TRACE("GetAppIDForCurrentPipe: AppId={}", appid);
+        return appid;
     }
 
     AppId_t GetAppIDFromInitialRunningGame() {
@@ -95,6 +97,7 @@ namespace Hooks_Misc {
             LOG_WARN("GetAppIDFromInitialRunningGame called before capture — returning 0");
             return 0;
         }
+        LOG_TRACE("GetAppIDFromInitialRunningGame: returning AppId={}", g_runningAppId);
         return g_runningAppId;
     }
 }

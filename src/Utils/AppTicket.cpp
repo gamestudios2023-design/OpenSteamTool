@@ -1,6 +1,52 @@
 #include "AppTicket.h"
 
+#include <cstdlib>
+
 namespace AppTicket {
+
+    static uint64_t GetSteamIDFromRegistryString(AppId_t appId) {
+        HKEY hKey;
+        const std::string regPath = "Software\\Valve\\Steam\\Apps\\" + std::to_string(appId);
+        if (RegOpenKeyExA(HKEY_CURRENT_USER, regPath.c_str(), 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
+            return 0;
+        }
+
+        DWORD valueType = 0;
+        DWORD valueSize = 0;
+        if (RegQueryValueExA(hKey, "SteamID", nullptr, &valueType, nullptr, &valueSize) != ERROR_SUCCESS
+            || valueType != REG_SZ || valueSize == 0) {
+            RegCloseKey(hKey);
+            return 0;
+        }
+
+        std::vector<char> value(valueSize);
+        if (RegQueryValueExA(hKey, "SteamID", nullptr, nullptr,
+            reinterpret_cast<LPBYTE>(value.data()), &valueSize) != ERROR_SUCCESS) {
+            RegCloseKey(hKey);
+            return 0;
+        }
+        RegCloseKey(hKey);
+
+        if (value.back() != '\0') {
+            value.push_back('\0');
+        }
+
+        const std::string steamIdStr(value.data());
+        if (steamIdStr.empty()) {
+            return 0;
+        }
+        for (char c : steamIdStr) {
+            if (c < '0' || c > '9') {
+                return 0;
+            }
+        }
+
+        const uint64_t steamID = std::strtoull(steamIdStr.c_str(), nullptr, 10);
+        if (steamID != 0) {
+            LOG_DEBUG("GetSpoofSteamID for AppId {}: SteamID REG_SZ -> 0x{:X}({})", appId, steamID, steamID);
+        }
+        return steamID;
+    }
 
     std::vector<uint8_t> GetAppOwnershipTicketFromRegistry(AppId_t appId) {
         LOG_TRACE("AppId={}", appId);
@@ -52,10 +98,21 @@ namespace AppTicket {
     }
 
     uint64_t GetSpoofSteamID(AppId_t appId) {
-        // This is a stub implementation. In the future, this could be extended to return different spoofed IDs based on various factors.
-        // For now, it simply returns a fixed non-zero CSteamID to pass the DRM-check path.
-        uint64_t SpoofSteamID = 0x110000100000001ULL; // Example non-zero CSteamID
-        LOG_TRACE("GetSpoofSteamID for AppId {}: returning 0x{:X}", appId, SpoofSteamID);
-        return SpoofSteamID;
+        const uint64_t registrySteamID = GetSteamIDFromRegistryString(appId);
+        if (registrySteamID != 0) {
+            return registrySteamID;
+        }
+
+        // The SteamID baked into the cached AppOwnershipTicket is the same
+        // one Steam itself uses for this app — pull it straight out of the
+        // ticket so spoofed responses match what the DRM layer expects.
+        // Layout: ticket bytes start with [uint32 Size][uint32 Version][uint64 SteamID][...].
+        std::vector<uint8_t> ticket = GetAppOwnershipTicketFromRegistry(appId);
+        if (ticket.size() >= 16) {
+            const uint64_t steamID = reinterpret_cast<const uint64_t*>(ticket.data())[1];
+            LOG_DEBUG("GetSpoofSteamID for AppId {}: -> 0x{:X}({})", appId, steamID, steamID);
+            return steamID;
+        }
+        return 0;
     }
 }

@@ -19,6 +19,7 @@ typedef uint32 PackageId_t;
 typedef uint32 PID_t;
 typedef uint32 AccountID_t;
 typedef uint32 HAuthTicket;
+typedef uint32 HCONNECTION;
 
 typedef int32 HSteamPipe;
 typedef int32 HSteamUser;

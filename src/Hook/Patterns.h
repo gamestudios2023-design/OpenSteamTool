@@ -27,12 +27,10 @@
 #define GetConfigStringSig         "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 81 EC 30 04 00 00 48 8B B4 24 60 04 00 00"
 #define BuildDepotDependencySig    "48 8B C4 4C 89 48 20 89 50 10 48 89 48 08 55 ?? 48 8D"
 #define AddAccessTokenSig          "89 48 20 48 8B 4B 18 89 50 10 48 89 48 18"
+#define RecvMultiPktSig            "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 48 8B F2 48 8B F9 48 8B CE"
+#define IPCProcessMessageSig       "48 89 5C 24 ?? 48 89 6C 24 ?? 56 41 54 41 55 41 56 41 57 48 83 EC ?? 49 8B D9"
+#define GetPipeClientSig           "85 D2 74 ?? 44 0F B7 CA"
 
-// patches (short signatures)
-#define SharedLibraryStopPlayingPatchSig   "0F 8E ?? ?? ?? ?? 48 89 BC 24 30 01 00 00"
-#define FamilyGroupRunningAppPatchSig     "0F 84 9C 01 00 00 4C 8D 35 ?? ?? ?? ?? 0F 1F 40 00"
-#define FamilyGroupRunningApp2PatchSig    "0F 84 ?? ?? ?? ?? 66 66 66 0F 1F 84 00 00 00 00 00 49 63 C6"
-#define BCanRemotePlayTogetherPatchSig    "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 48 8B ?? ?? ?? ?? ?? 48 8B F1 8B FA"
 
 /* -------------------------------------------------------------------------- */
 /*                     KeyValues — multi-signature arrays                      */
@@ -52,3 +50,5 @@ inline const Signature KeyValues_FindOrCreateKeySigs[] = {
     {"3-10", KeyValues_FindOrCreateKey_v1},
     {"4-29", KeyValues_FindOrCreateKey_v2},
 };
+
+
