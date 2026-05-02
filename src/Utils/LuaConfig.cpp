@@ -203,17 +203,16 @@ namespace LuaConfig{
 
     static int lua_setManifestid(lua_State* L)
     {
-        // setManifestid(depotId, gid_string, size)
+        // setManifestid(depotId, gid_string [, size])
+        // size is always forced to 0 to prevent incorrect size from breaking Steam.
         int argc = lua_gettop(L);
-        if (argc < 3)
-            return luaL_error(L, "setManifestid: need depotId, gid, size");
+        if (argc < 2)
+            return luaL_error(L, "setManifestid: need depotId, gid");
 
         if (!lua_isinteger(L, 1))
             return luaL_error(L, "setManifestid: depotId must be integer");
         if (!lua_isstring(L, 2))
             return luaL_error(L, "setManifestid: gid must be decimal string");
-        if (!lua_isstring(L, 3) && !lua_isinteger(L, 3))
-            return luaL_error(L, "setManifestid: size must be string or integer");
 
         lua_Integer val = lua_tointeger(L, 1);
         if (val < 0 || val > UINT32_MAX)
@@ -225,17 +224,7 @@ namespace LuaConfig{
         if (!std::all_of(gidStr, gidStr + strlen(gidStr), ::isdigit))
             return luaL_error(L, "setManifestid: gid must be all digits");
 
-        uint64_t sizeVal;
-        if (lua_isinteger(L, 3)) {
-            sizeVal = (uint64_t)lua_tointeger(L, 3);
-        } else {
-            const char* sizeStr = lua_tostring(L, 3);
-            if (!std::all_of(sizeStr, sizeStr + strlen(sizeStr), ::isdigit))
-                return luaL_error(L, "setManifestid: size must be all digits");
-            sizeVal = std::stoull(sizeStr);
-        }
-
-        ManifestOverrides[depotId] = { std::stoull(gidStr), sizeVal };
+        ManifestOverrides[depotId] = { std::stoull(gidStr), 0 };
         return 0;
     }
 

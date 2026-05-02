@@ -11,10 +11,22 @@ bool LoadDiversion()
     sprintf_s(DiversionPath,   MAX_PATH, "%s\\bin\\diversion.dll", SteamInstallPath);
     sprintf_s(LuaDir,          MAX_PATH, "%s\\config\\lua",        SteamInstallPath);
     sprintf_s(ConfigPath,      MAX_PATH, "%s\\opensteamtool.toml", SteamInstallPath);
-    // copy steamclient64.dll to diversion.dll
-    CopyFileA(SteamclientPath, DiversionPath, FALSE);
+    // ensure bin\ directory exists before copying
+    char binDir[MAX_PATH];
+    sprintf_s(binDir, MAX_PATH, "%s\\bin", SteamInstallPath);
+    CreateDirectoryA(binDir, nullptr);  // no-op if already exists
+    if (!CopyFileA(SteamclientPath, DiversionPath, FALSE)) {
+        LOG_ERROR("CopyFileA failed: {} -> {} (err={})",
+                  SteamclientPath, DiversionPath, GetLastError());
+        return false;
+    }
     diversion_hMdoule = LoadLibraryA(DiversionPath);
-    return diversion_hMdoule != nullptr;
+    if (!diversion_hMdoule) {
+        LOG_ERROR("LoadLibraryA failed: {} (err={})", DiversionPath, GetLastError());
+        return false;
+    }
+    LOG_INFO("Loaded diversion.dll from {}", DiversionPath);
+    return true;
 }
 
 // All initialisation that touches the filesystem, calls LoadLibrary, scans
