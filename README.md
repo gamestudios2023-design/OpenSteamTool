@@ -58,7 +58,7 @@ All function names are **case-insensitive**. `setAppTicket`, `setappticket`, `Se
 
 ### Configuration (optional)
 
-Rename `opensteamtool.example.toml` to `opensteamtool.toml` and place it in the Steam root directory (next to `steam.exe`).  
+Rename `opensteamtool.example.toml` to `opensteamtool.toml` and place it in the Steam root directory (next to `steam.exe`).
 If no config file is found, built-in defaults are used — no auto-creation.
 
 ```toml
@@ -75,13 +75,36 @@ timeout_resolve_ms = 5000
 timeout_connect_ms = 5000
 timeout_send_ms    = 10000
 timeout_recv_ms    = 10000
+
+# Additional Lua config directories (optional).
+# Files are loaded after the default <Steam>/config/lua folder.
+# The default folder is always loaded last so user files take priority.
+[lua]
+paths = []
 ```
+
+### Hot reload
+
+Lua scripts can be reloaded without restarting Steam via the IPC pipe `\\.\pipe\OpenSteamTool_Trigger`:
+
+- **FullReload** — clears all maps, reloads all lua paths, refreshes Package0, triggers Steam UI offline/online
+- **AppIdReload** — clears specified appIds from maps, reloads all lua paths, refreshes Package0, triggers Steam UI offline/online
+
+The file watcher also auto-triggers a FullReload when any `.lua` file in the watched directories changes.
 
 ### Manifest via Lua
 
-If `<Steam>/config/lua/manifest.lua` defines `fetch_manifest_code(gid)`, it
-overrides the `[manifest] url` setting.  The C++ runtime provides two Lua
-helpers:
+Two manifest code functions are supported:
+
+#### `fetch_manifest_code(gid)`
+
+Basic function that receives only the manifest GID.
+
+#### `fetch_manifest_code_ex(app_id, depot_id, gid)` *(recommended)*
+
+Extended function that receives `app_id`, `depot_id`, and `gid`. Allows constructing API endpoints that require app identification.
+
+The C++ runtime provides two Lua helpers:
 
 | Function | Signature | Returns |
 |----------|-----------|---------|

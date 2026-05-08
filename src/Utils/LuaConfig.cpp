@@ -14,6 +14,7 @@ extern "C" {
 namespace LuaConfig{
     static lua_State* g_lua_state = nullptr;
     static bool g_hasManifestCodeFunc = false;
+    static bool g_hasManifestCodeFuncEx = false;
     std::unordered_map<AppId_t, std::string>DepotKeySet{};
     std::unordered_map<AppId_t, uint64_t>AccessTokenSet{};
     std::unordered_set<AppId_t> PinnedApps{};
@@ -424,6 +425,82 @@ namespace LuaConfig{
       return ManifestOverrides;
     }
 
+    void ClearAllMaps() {
+        DepotKeySet.clear();
+        AccessTokenSet.clear();
+        PinnedApps.clear();
+        ManifestOverrides.clear();
+        StatSteamIdSet.clear();
+        OwnedAppIdSet.clear();
+        g_hasManifestCodeFunc = false;
+        g_hasManifestCodeFuncEx = false;
+        LOG_INFO("Cleared all LuaConfig maps");
+    }
+
+    void ClearAppId(AppId_t appId) {
+        DepotKeySet.erase(appId);
+        AccessTokenSet.erase(appId);
+        PinnedApps.erase(appId);
+        StatSteamIdSet.erase(appId);
+        OwnedAppIdSet.erase(appId);
+        ManifestOverrides.erase(appId);
+        LOG_INFO("Cleared appId {} from all maps", appId);
+    }
+
+    void RefreshAppIds(const std::vector<AppId_t>& appIds) {
+        for (AppId_t appId : appIds) {
+            ClearAppId(appId);
+        }
+        if (!Initialize()) return;
+
+        std::error_code ec;
+        if (!std::filesystem::exists(LuaDir, ec))
+            std::filesystem::create_directories(LuaDir, ec);
+        if (!std::filesystem::exists(LuaDir, ec) || !std::filesystem::is_directory(LuaDir, ec))
+            return;
+
+        for (const auto& entry : std::filesystem::directory_iterator(LuaDir, ec)) {
+            if (ec) break;
+            if (!entry.is_regular_file()) continue;
+            const auto& path = entry.path();
+            if (path.extension() != ".lua") continue;
+
+            std::ifstream file(path);
+            if (!file) continue;
+
+            std::string chunk, line;
+            int lineNo = 0;
+            while (std::getline(file, line)) {
+                ++lineNo;
+                if (!chunk.empty()) chunk += '\n';
+                chunk += line;
+
+                lua_settop(g_lua_state, 0);
+                int rc = luaL_loadstring(g_lua_state, chunk.c_str());
+                if (rc == LUA_OK) {
+                    if (lua_pcall(g_lua_state, 0, 0, 0) != LUA_OK) {
+                        const char* err = lua_tostring(g_lua_state, -1);
+                        LOG_WARN("{}:{}: {}", path.filename().string(), lineNo,
+                                 err ? err : "unknown");
+                    }
+                    chunk.clear();
+                } else if (rc == LUA_ERRSYNTAX) {
+                    lua_pop(g_lua_state, 1);
+                } else {
+                    const char* err = lua_tostring(g_lua_state, -1);
+                    LOG_WARN("{}:{}: {}", path.filename().string(), lineNo, err ? err : "unknown");
+                    lua_pop(g_lua_state, 1);
+                    chunk.clear();
+                }
+            }
+            if (!chunk.empty()) {
+                LOG_WARN("{}: incomplete statement at end of file", path.filename().string());
+            }
+        }
+
+        LOG_INFO("RefreshAppIds completed, {} depots loaded", (uint32_t)DepotKeySet.size());
+    }
+
     bool HasManifestCodeFunc() {
         return g_hasManifestCodeFunc;
     }
@@ -474,8 +551,58 @@ namespace LuaConfig{
         return true;
     }
 
+    bool HasManifestCodeFuncEx() {
+        return g_hasManifestCodeFuncEx;
+    }
+
+    bool CallManifestFetchCodeEx(uint64_t app_id, uint64_t depot_id, uint64_t gid, uint64_t* outCode) {
+        if (!g_hasManifestCodeFuncEx || !g_lua_state)
+            return false;
+
+        lua_getglobal(g_lua_state, "fetch_manifest_code_ex");
+        lua_pushinteger(g_lua_state, static_cast<lua_Integer>(app_id));
+        lua_pushinteger(g_lua_state, static_cast<lua_Integer>(depot_id));
+        lua_pushinteger(g_lua_state, static_cast<lua_Integer>(gid));
+
+        if (lua_pcall(g_lua_state, 3, 1, 0) != LUA_OK) {
+            LOG_MANIFEST_WARN("fetch_manifest_code_ex({}, {}, {}) error: {}", app_id, depot_id, gid,
+                             lua_tostring(g_lua_state, -1));
+            lua_pop(g_lua_state, 1);
+            return false;
+        }
+
+        if (lua_isnil(g_lua_state, -1)) {
+            LOG_MANIFEST_WARN("fetch_manifest_code_ex({}, {}, {}) returned nil", app_id, depot_id, gid);
+            lua_pop(g_lua_state, 1);
+            return false;
+        }
+
+        if (lua_isinteger(g_lua_state, -1)) {
+            *outCode = static_cast<uint64_t>(lua_tointeger(g_lua_state, -1));
+        } else if (lua_isstring(g_lua_state, -1)) {
+            const char* s = lua_tostring(g_lua_state, -1);
+            if (!std::all_of(s, s + strlen(s), ::isdigit)) {
+                LOG_MANIFEST_WARN("fetch_manifest_code_ex({}, {}, {}) returned non-numeric string '{}'",
+                                 app_id, depot_id, gid, s);
+                lua_pop(g_lua_state, 1);
+                return false;
+            }
+            *outCode = std::stoull(s);
+        } else {
+            LOG_MANIFEST_WARN("fetch_manifest_code_ex({}, {}, {}) unexpected type (expected digit-string)",
+                             app_id, depot_id, gid);
+            lua_pop(g_lua_state, 1);
+            return false;
+        }
+
+        LOG_MANIFEST_INFO("fetch_manifest_code_ex({}, {}, {}) = {}", app_id, depot_id, gid, *outCode);
+        lua_pop(g_lua_state, 1);
+        return true;
+    }
+
     // ── directory scanner ────────────────────────────────────────
-    void ParseDirectory(const std::string& directory) {
+    void ParseDirectory(const std::string& directory, bool clearFirst) {
+        if (clearFirst) ClearAllMaps();
         if (!Initialize()) return;
 
         std::error_code ec;
@@ -538,6 +665,14 @@ namespace LuaConfig{
         if (lua_isfunction(g_lua_state, -1)) {
             g_hasManifestCodeFunc = true;
             LOG_INFO("manifest.lua: fetch_manifest_code found");
+        }
+        lua_pop(g_lua_state, 1);
+
+        g_hasManifestCodeFuncEx = false;
+        lua_getglobal(g_lua_state, "fetch_manifest_code_ex");
+        if (lua_isfunction(g_lua_state, -1)) {
+            g_hasManifestCodeFuncEx = true;
+            LOG_INFO("manifest.lua: fetch_manifest_code_ex found");
         }
         lua_pop(g_lua_state, 1);
 

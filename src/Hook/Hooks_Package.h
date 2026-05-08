@@ -5,4 +5,5 @@ namespace Hooks_Package {
     // user-supplied depots appear owned and accessible.
     void Install();
     void Uninstall();
+    void RefreshPackage0();
 }

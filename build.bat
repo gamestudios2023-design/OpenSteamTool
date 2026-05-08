@@ -15,7 +15,7 @@ if "%GENERATOR%"=="" (
     if not errorlevel 1 (
         set "GENERATOR=Ninja Multi-Config"
     ) else (
-        set "GENERATOR=Visual Studio 17 2022"
+        set "GENERATOR=Visual Studio 18 2026"
     )
 )
 if "%ARCH%"=="" set "ARCH=x64"

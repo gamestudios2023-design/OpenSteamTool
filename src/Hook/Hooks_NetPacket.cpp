@@ -481,14 +481,15 @@ namespace Hooks_NetPacket_Manifest {
         uint64 jobId       = hdr.jobid_source();
         uint64 manifestGid = req.manifest_id();
         uint32 depotId     = req.depot_id();
+        uint32 appId       = req.has_app_id() ? req.app_id() : 0;
 
-        LOG_MANIFEST_DEBUG("GetManifestRequestCode send: depot={} gid={} jobid={}",
-                            depotId, manifestGid, jobId);
+        LOG_MANIFEST_DEBUG("GetManifestRequestCode send: depot={} gid={} jobid={} app_id={}",
+                            depotId, manifestGid, jobId, appId);
 
         auto task = std::async(std::launch::async,
-            [manifestGid]() -> uint64 {
+            [manifestGid, depotId, appId]() -> uint64 {
                 uint64 code = 0;
-                Hooks_Manifest::FetchManifestRequestCode(manifestGid, &code);
+                Hooks_Manifest::FetchManifestRequestCode(manifestGid, &code, appId, depotId);
                 return code;
             });
 
