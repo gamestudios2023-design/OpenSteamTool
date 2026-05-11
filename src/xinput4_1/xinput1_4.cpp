@@ -1,6 +1,7 @@
 // xinput1_4.dll HiJack Project
 
 #include <windows.h>
+#include <cstdio>
 #include <cstring>
 #include <detours.h>
 
@@ -28,8 +29,18 @@ static LoadLibraryExW_t oLoadLibraryExW = nullptr;
 
 HMODULE WINAPI hkLoadLibraryExW(LPCWSTR lpLibFileName, HANDLE hFile, DWORD dwFlags)
 {
-    if (lpLibFileName && g_OldModule && _wcsicmp(lpLibFileName, L"xinput1_4.dll") == 0)
-        return g_OldModule;
+    if (lpLibFileName)
+    {
+        char buf[512];
+        sprintf(buf, "[xinput1_4] hkLoadLibraryExW called: %ls (flags=0x%lx)", lpLibFileName, dwFlags);
+        OutputDebugStringA(buf);
+
+        if (g_OldModule && _wcsicmp(lpLibFileName, L"xinput1_4.dll") == 0)
+        {
+            OutputDebugStringA("[xinput1_4] -> hijacked, returning g_OldModule");
+            return g_OldModule;
+        }
+    }
     return oLoadLibraryExW(lpLibFileName, hFile, dwFlags);
 }
 
@@ -38,13 +49,25 @@ static void InstallHook()
     oLoadLibraryExW = reinterpret_cast<LoadLibraryExW_t>(
         GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "LoadLibraryExW"));
     if (!oLoadLibraryExW)
+    {
+        OutputDebugStringA("[xinput1_4] GetProcAddress(LoadLibraryExW) failed");
         return;
+    }
+
+    char buf[256];
+    sprintf(buf, "[xinput1_4] oLoadLibraryExW = %p, hkLoadLibraryExW = %p, g_OldModule = %p",
+        reinterpret_cast<void*>(oLoadLibraryExW),
+        reinterpret_cast<void*>(hkLoadLibraryExW),
+        g_OldModule);
+    OutputDebugStringA(buf);
 
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
     DetourAttach(reinterpret_cast<PVOID*>(&oLoadLibraryExW),
                  reinterpret_cast<PVOID>(hkLoadLibraryExW));
-    DetourTransactionCommit();
+    LONG err = DetourTransactionCommit();
+    sprintf(buf, "[xinput1_4] DetourTransactionCommit returned %ld (0=success)", err);
+    OutputDebugStringA(buf);
 }
 
 static void UninstallHook()
