@@ -377,7 +377,7 @@ namespace LuaConfig{
 
     void MarkOwned(AppId_t AppId) {
         if(!OwnedAppIdSet.count(AppId)) {
-            LOG_INFO("Marking app {} as owned", AppId);
+            LOG_PACKAGE_INFO("Marking app {} as owned", AppId);
             OwnedAppIdSet.insert(AppId);
         }
     }
@@ -423,82 +423,6 @@ namespace LuaConfig{
 
     const std::unordered_map<uint64_t, ManifestOverride>& GetManifestOverrides() {
       return ManifestOverrides;
-    }
-
-    void ClearAllMaps() {
-        DepotKeySet.clear();
-        AccessTokenSet.clear();
-        PinnedApps.clear();
-        ManifestOverrides.clear();
-        StatSteamIdSet.clear();
-        OwnedAppIdSet.clear();
-        g_hasManifestCodeFunc = false;
-        g_hasManifestCodeFuncEx = false;
-        LOG_INFO("Cleared all LuaConfig maps");
-    }
-
-    void ClearAppId(AppId_t appId) {
-        DepotKeySet.erase(appId);
-        AccessTokenSet.erase(appId);
-        PinnedApps.erase(appId);
-        StatSteamIdSet.erase(appId);
-        OwnedAppIdSet.erase(appId);
-        ManifestOverrides.erase(appId);
-        LOG_INFO("Cleared appId {} from all maps", appId);
-    }
-
-    void RefreshAppIds(const std::vector<AppId_t>& appIds) {
-        for (AppId_t appId : appIds) {
-            ClearAppId(appId);
-        }
-        if (!Initialize()) return;
-
-        std::error_code ec;
-        if (!std::filesystem::exists(LuaDir, ec))
-            std::filesystem::create_directories(LuaDir, ec);
-        if (!std::filesystem::exists(LuaDir, ec) || !std::filesystem::is_directory(LuaDir, ec))
-            return;
-
-        for (const auto& entry : std::filesystem::directory_iterator(LuaDir, ec)) {
-            if (ec) break;
-            if (!entry.is_regular_file()) continue;
-            const auto& path = entry.path();
-            if (path.extension() != ".lua") continue;
-
-            std::ifstream file(path);
-            if (!file) continue;
-
-            std::string chunk, line;
-            int lineNo = 0;
-            while (std::getline(file, line)) {
-                ++lineNo;
-                if (!chunk.empty()) chunk += '\n';
-                chunk += line;
-
-                lua_settop(g_lua_state, 0);
-                int rc = luaL_loadstring(g_lua_state, chunk.c_str());
-                if (rc == LUA_OK) {
-                    if (lua_pcall(g_lua_state, 0, 0, 0) != LUA_OK) {
-                        const char* err = lua_tostring(g_lua_state, -1);
-                        LOG_WARN("{}:{}: {}", path.filename().string(), lineNo,
-                                 err ? err : "unknown");
-                    }
-                    chunk.clear();
-                } else if (rc == LUA_ERRSYNTAX) {
-                    lua_pop(g_lua_state, 1);
-                } else {
-                    const char* err = lua_tostring(g_lua_state, -1);
-                    LOG_WARN("{}:{}: {}", path.filename().string(), lineNo, err ? err : "unknown");
-                    lua_pop(g_lua_state, 1);
-                    chunk.clear();
-                }
-            }
-            if (!chunk.empty()) {
-                LOG_WARN("{}: incomplete statement at end of file", path.filename().string());
-            }
-        }
-
-        LOG_INFO("RefreshAppIds completed, {} depots loaded", (uint32_t)DepotKeySet.size());
     }
 
     bool HasManifestCodeFunc() {
@@ -600,66 +524,47 @@ namespace LuaConfig{
         return true;
     }
 
-    // ── directory scanner ────────────────────────────────────────
-    void ParseDirectory(const std::string& directory, bool clearFirst) {
-        if (clearFirst) ClearAllMaps();
+    // ── single-file parser ──────────────────────────────────────
+    void ParseFile(const std::string& filePath) {
         if (!Initialize()) return;
 
-        std::error_code ec;
-        if (!std::filesystem::exists(directory, ec))
-            std::filesystem::create_directories(directory, ec);
-        if (!std::filesystem::exists(directory, ec) || !std::filesystem::is_directory(directory, ec))
+        std::filesystem::path path(filePath);
+        std::ifstream file(path);
+        if (!file) {
+            LOG_WARN("ParseFile: failed to open {}", path.filename().string());
             return;
-
-        for (const auto& entry : std::filesystem::directory_iterator(directory, ec)) {
-            if (ec) break;
-            if (!entry.is_regular_file()) continue;
-            const auto& path = entry.path();
-            if (path.extension() != ".lua") continue;
-
-            std::ifstream file(path);
-            if (!file) continue;
-
-            std::string chunk, line;
-            int lineNo = 0;
-            while (std::getline(file, line)) {
-                ++lineNo;
-                if (!chunk.empty()) chunk += '\n';
-                chunk += line;
-
-                // try to compile the accumulated chunk; if it fails with
-                // a syntax error the statement is likely incomplete —
-                // keep accumulating lines
-                lua_settop(g_lua_state, 0);
-                int rc = luaL_loadstring(g_lua_state, chunk.c_str());
-                if (rc == LUA_OK) {
-                    // valid chunk — execute it
-                    if (lua_pcall(g_lua_state, 0, 0, 0) != LUA_OK) {
-                        const char* err = lua_tostring(g_lua_state, -1);
-                        LOG_WARN("{}:{}: {}", path.filename().string(), lineNo,
-                                 err ? err : "unknown");
-                    }
-                    chunk.clear();
-                } else if (rc == LUA_ERRSYNTAX) {
-                    // incomplete — keep accumulating
-                    lua_pop(g_lua_state, 1);
-                } else {
-                    // memory error etc. — give up on this chunk
-                    const char* err = lua_tostring(g_lua_state, -1);
-                    LOG_WARN("{}:{}: {}", path.filename().string(), lineNo, err ? err : "unknown");
-                    lua_pop(g_lua_state, 1);
-                    chunk.clear();
-                }
-            }
-            // trailing incomplete chunk (shouldn't happen normally)
-            if (!chunk.empty()) {
-                LOG_WARN("{}: incomplete statement at end of file", path.filename().string());
-            }
         }
 
-        // After parsing all .lua files, check for manifest.lua's
-        // fetch_manifest_code function. Lua state stays alive so we
-        // can call it lazily from the manifest hook.
+        std::string chunk, line;
+        int lineNo = 0;
+        while (std::getline(file, line)) {
+            ++lineNo;
+            if (!chunk.empty()) chunk += '\n';
+            chunk += line;
+
+            lua_settop(g_lua_state, 0);
+            int rc = luaL_loadstring(g_lua_state, chunk.c_str());
+            if (rc == LUA_OK) {
+                if (lua_pcall(g_lua_state, 0, 0, 0) != LUA_OK) {
+                    const char* err = lua_tostring(g_lua_state, -1);
+                    LOG_WARN("{}:{}: {}", path.filename().string(), lineNo,
+                             err ? err : "unknown");
+                }
+                chunk.clear();
+            } else if (rc == LUA_ERRSYNTAX) {
+                lua_pop(g_lua_state, 1);
+            } else {
+                const char* err = lua_tostring(g_lua_state, -1);
+                LOG_WARN("{}:{}: {}", path.filename().string(), lineNo, err ? err : "unknown");
+                lua_pop(g_lua_state, 1);
+                chunk.clear();
+            }
+        }
+        if (!chunk.empty()) {
+            LOG_WARN("{}: incomplete statement at end of file", path.filename().string());
+        }
+
+        // Check for manifest code functions after parsing.
         g_hasManifestCodeFunc = false;
         lua_getglobal(g_lua_state, "fetch_manifest_code");
         if (lua_isfunction(g_lua_state, -1)) {
@@ -675,9 +580,24 @@ namespace LuaConfig{
             LOG_INFO("manifest.lua: fetch_manifest_code_ex found");
         }
         lua_pop(g_lua_state, 1);
+    }
 
-        // Intentionally do NOT call Cleanup() — Lua state must stay
-        // alive for CallManifestFetchCode queries during runtime.
+    // ── directory scanner ────────────────────────────────────────
+    void ParseDirectory(const std::string& directory) {
+        if (!Initialize()) return;
+
+        std::error_code ec;
+        if (!std::filesystem::exists(directory, ec))
+            std::filesystem::create_directories(directory, ec);
+        if (!std::filesystem::exists(directory, ec) || !std::filesystem::is_directory(directory, ec))
+            return;
+
+        for (const auto& entry : std::filesystem::directory_iterator(directory, ec)) {
+            if (ec) break;
+            if (!entry.is_regular_file()) continue;
+            if (entry.path().extension() != ".lua") continue;
+            ParseFile(entry.path().string());
+        }
     }
 
 }

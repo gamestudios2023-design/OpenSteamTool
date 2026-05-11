@@ -27,6 +27,7 @@ include(Detours)
 include(Spdlog)
 include(Protobuf)
 include(Tomlplusplus)
+include(LogMacros)
 
 # ---------------------------------------------------------------------------
 # Protobuf code generation — two variants from the same .proto:
@@ -82,7 +83,6 @@ add_library(OpenSteamTool SHARED
     Utils/VehCommon.cpp
     Utils/WinHttp.cpp
     Utils/FileWatcher.cpp
-    Utils/IPCTrigger.cpp
 
     # Per-category hook modules
     Hook/HookManager.cpp
@@ -108,6 +108,7 @@ add_library(OpenSteamTool SHARED
 # Header search path — per-config include directory
 target_include_directories(OpenSteamTool PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}/generated
     $<$<CONFIG:Debug>:${PROTO_GEN_DIR}>
     $<$<CONFIG:Release>:${PROTO_GEN_LITE_DIR}>
 )
@@ -140,3 +141,4 @@ add_library(dwmapi SHARED
 add_library(xinput1_4 SHARED
     xinput4_1/xinput1_4.cpp
 )
+target_link_libraries(xinput1_4 PRIVATE detours)

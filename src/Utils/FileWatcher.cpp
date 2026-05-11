@@ -1,15 +1,12 @@
 #include "dllmain.h"
 #include "FileWatcher.h"
 #include "LuaConfig.h"
-#include "Hook/Hooks_Package.h"
+#include "Hook/Hooks_Misc.h"
 #include "Log.h"
 #include <thread>
 #include <atomic>
-#include <shellapi.h>
 #include <vector>
 #include <string>
-
-#pragma comment(lib, "shell32.lib")
 
 namespace FileWatcher {
     static std::atomic<bool> g_running{false};
@@ -18,65 +15,63 @@ namespace FileWatcher {
 
     static const DWORD kDebounceMs = 500;
 
-    static std::string WideToString(const std::wstring& wstr) {
-        std::string result;
-        result.reserve(wstr.size());
-        for (wchar_t c : wstr) {
-            result.push_back(static_cast<char>(c));
+    static void TriggerRefresh(const std::vector<std::string>& newFiles) {
+        LOG_PACKAGE_INFO("{} new Lua file(s) detected, refreshing after {}ms debounce",
+                         newFiles.size(), kDebounceMs);
+        std::this_thread::sleep_for(std::chrono::milliseconds(kDebounceMs));
+
+        for (const auto& path : newFiles)
+            LuaConfig::ParseFile(path);
+
+        Hooks_Misc::NotifyLicenseChanged();
+        LOG_PACKAGE_INFO("Refresh completed");
+    }
+
+    // Collects newly created .lua filenames from the notification buffer.
+    static std::vector<std::string> CollectNewLuaFiles(
+        const char* buffer, DWORD bytesReturned, const std::string& dir)
+    {
+        std::vector<std::string> result;
+        const FILE_NOTIFY_INFORMATION* info =
+            reinterpret_cast<const FILE_NOTIFY_INFORMATION*>(buffer);
+        while (info) {
+            if (info->Action == FILE_ACTION_ADDED) {
+                std::wstring_view fname(info->FileName, info->FileNameLength / sizeof(wchar_t));
+                if (fname.size() >= 4 && fname.substr(fname.size() - 4) == L".lua") {
+                    std::string name(fname.begin(), fname.end());
+                    LOG_PACKAGE_INFO("New Lua file: {}", name);
+                    result.push_back(dir + "\\" + name);
+                }
+            }
+            if (info->NextEntryOffset == 0) break;
+            info = reinterpret_cast<const FILE_NOTIFY_INFORMATION*>(
+                reinterpret_cast<const char*>(info) + info->NextEntryOffset);
         }
         return result;
     }
 
-    static void TriggerRefresh() {
-        LOG_INFO("[FileWatcher] Detected change, triggering refresh after {}ms debounce", kDebounceMs);
-        std::this_thread::sleep_for(std::chrono::milliseconds(kDebounceMs));
-
-        LuaConfig::ParseDirectory(g_watchDirs[0], true);
-        for (size_t i = 1; i < g_watchDirs.size(); ++i) {
-            LuaConfig::ParseDirectory(g_watchDirs[i], false);
-        }
-        Hooks_Package::RefreshPackage0();
-
-        LOG_INFO("[FileWatcher] Triggering Steam UI refresh (offline)");
-        ShellExecuteA(nullptr, "open", "steam://open/gooffline", nullptr, nullptr, SW_HIDE);
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        LOG_INFO("[FileWatcher] Triggering Steam UI refresh (online)");
-        ShellExecuteA(nullptr, "open", "steam://open/goonline", nullptr, nullptr, SW_HIDE);
-        LOG_INFO("[FileWatcher] Refresh completed");
-    }
-
-    static bool HasLuaChange(const char* buffer, DWORD bytesReturned) {
-        FILE_NOTIFY_INFORMATION* info = reinterpret_cast<FILE_NOTIFY_INFORMATION*>(const_cast<char*>(buffer));
-        while (info) {
-            std::wstring fname(info->FileName, info->FileNameLength / sizeof(wchar_t));
-            std::string name = WideToString(fname);
-
-            if (name.size() > 4 && name.substr(name.size() - 4) == ".lua") {
-                LOG_INFO("[FileWatcher] Lua file changed: {}", name);
-                return true;
+    static bool IssueRead(HANDLE dir, char* buf, DWORD bufSize, OVERLAPPED* ov) {
+        DWORD dummy = 0;
+        if (!ReadDirectoryChangesW(dir, buf, bufSize, FALSE,
+                                   FILE_NOTIFY_CHANGE_FILE_NAME,
+                                   &dummy, ov, nullptr)) {
+            if (GetLastError() != ERROR_IO_PENDING) {
+                LOG_PACKAGE_WARN("ReadDirectoryChangesW failed: {}", GetLastError());
+                return false;
             }
-
-            if (info->NextEntryOffset == 0) break;
-            info = reinterpret_cast<FILE_NOTIFY_INFORMATION*>(
-                reinterpret_cast<char*>(info) + info->NextEntryOffset
-            );
         }
-        return false;
+        return true;
     }
 
     static void WatcherThread() {
-        g_running = true;
-
         const size_t numDirs = g_watchDirs.size();
-        std::vector<HANDLE> dirHandles(numDirs);
+        std::vector<HANDLE> dirHandles(numDirs, nullptr);
         std::vector<OVERLAPPED> overlapped(numDirs);
-        std::vector<HANDLE> events(numDirs);
+        std::vector<HANDLE> events(numDirs, nullptr);
         std::vector<std::vector<char>> buffers(numDirs);
-        std::vector<bool> hasChange(numDirs, false);
 
         for (size_t i = 0; i < numDirs; ++i) {
             events[i] = CreateEventA(nullptr, FALSE, FALSE, nullptr);
-            overlapped[i] = {};
             overlapped[i].hEvent = events[i];
             buffers[i].resize(65536);
 
@@ -84,85 +79,69 @@ namespace FileWatcher {
                 g_watchDirs[i].c_str(),
                 FILE_LIST_DIRECTORY,
                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                nullptr,
-                OPEN_EXISTING,
+                nullptr, OPEN_EXISTING,
                 FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
-                nullptr
-            );
+                nullptr);
 
             if (dirHandles[i] == INVALID_HANDLE_VALUE) {
-                LOG_WARN("[FileWatcher] Failed to open directory: {} (err={})", g_watchDirs[i], GetLastError());
+                LOG_PACKAGE_WARN("Failed to open: {} (err={})", g_watchDirs[i], GetLastError());
                 dirHandles[i] = nullptr;
                 continue;
             }
 
-            LOG_INFO("[FileWatcher] Started watching: {}", g_watchDirs[i]);
+            if (!IssueRead(dirHandles[i], buffers[i].data(),
+                           static_cast<DWORD>(buffers[i].size()), &overlapped[i])) {
+                CloseHandle(dirHandles[i]);
+                dirHandles[i] = nullptr;
+                continue;
+            }
+
+            LOG_PACKAGE_INFO("Watching: {}", g_watchDirs[i]);
         }
 
         bool allFailed = true;
-        for (auto& h : dirHandles) {
-            if (h) { allFailed = false; break; }
-        }
+        for (auto& h : dirHandles) if (h) { allFailed = false; break; }
         if (allFailed) {
-            LOG_WARN("[FileWatcher] No directories could be opened");
+            LOG_PACKAGE_WARN("No directories could be opened");
             for (auto& e : events) if (e) CloseHandle(e);
             return;
         }
 
         while (g_running) {
-            for (size_t i = 0; i < numDirs; ++i) {
-                if (!dirHandles[i]) continue;
-
-                DWORD bytesReturned = 0;
-                BOOL success = ReadDirectoryChangesW(
-                    dirHandles[i],
-                    buffers[i].data(),
-                    static_cast<DWORD>(buffers[i].size()),
-                    FALSE,
-                    FILE_NOTIFY_CHANGE_FILE_NAME |
-                    FILE_NOTIFY_CHANGE_LAST_WRITE |
-                    FILE_NOTIFY_CHANGE_CREATION,
-                    &bytesReturned,
-                    &overlapped[i],
-                    nullptr
-                );
-
-                if (!success) {
-                    LOG_WARN("[FileWatcher] ReadDirectoryChangesW failed for {}: {}", g_watchDirs[i], GetLastError());
-                }
-            }
-
-            DWORD waitResult = WaitForMultipleObjects(static_cast<DWORD>(numDirs), events.data(), FALSE, 1000);
+            DWORD waitResult = WaitForMultipleObjects(
+                static_cast<DWORD>(numDirs), events.data(), FALSE, 1000);
 
             if (!g_running) break;
-
             if (waitResult == WAIT_TIMEOUT) continue;
+            if (waitResult < WAIT_OBJECT_0 || waitResult >= WAIT_OBJECT_0 + numDirs) continue;
 
-            if (waitResult >= WAIT_OBJECT_0 && waitResult < WAIT_OBJECT_0 + numDirs) {
-                size_t idx = waitResult - WAIT_OBJECT_0;
-                if (dirHandles[idx]) {
-                    DWORD bytesReturned = 0;
-                    if (GetOverlappedResult(dirHandles[idx], &overlapped[idx], &bytesReturned, FALSE)) {
-                        if (HasLuaChange(buffers[idx].data(), bytesReturned)) {
-                            TriggerRefresh();
-                        }
-                    }
-                    ResetEvent(events[idx]);
-                }
+            size_t idx = waitResult - WAIT_OBJECT_0;
+            HANDLE dir = dirHandles[idx];
+            if (!dir) continue;
+
+            DWORD bytesReturned = 0;
+            if (GetOverlappedResult(dir, &overlapped[idx], &bytesReturned, FALSE)
+                && bytesReturned > 0) {
+                auto newFiles = CollectNewLuaFiles(
+                    buffers[idx].data(), bytesReturned, g_watchDirs[idx]);
+                if (!newFiles.empty())
+                    TriggerRefresh(newFiles);
             }
+
+            IssueRead(dir, buffers[idx].data(),
+                      static_cast<DWORD>(buffers[idx].size()), &overlapped[idx]);
         }
 
         for (auto& h : dirHandles) if (h) CloseHandle(h);
         for (auto& e : events) if (e) CloseHandle(e);
-        LOG_INFO("[FileWatcher] Stopped");
+        LOG_PACKAGE_INFO("Stopped");
     }
 
     void Start(const std::vector<std::string>& directories) {
         if (g_running.exchange(true)) {
-            LOG_WARN("[FileWatcher] Already running");
+            LOG_PACKAGE_WARN("Already running");
             return;
         }
-
         g_watchDirs = directories;
         g_watcherThread = std::thread(WatcherThread);
     }

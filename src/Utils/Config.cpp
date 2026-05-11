@@ -44,7 +44,7 @@ namespace Config {
                 }
             }
 
-// [lua]
+            // [lua]
             if (auto lua = tbl["lua"].as_table()) {
                 if (auto arr = (*lua)["paths"].as_array()) {
                     for (auto& elem : *arr) {

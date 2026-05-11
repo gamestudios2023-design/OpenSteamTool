@@ -2,6 +2,7 @@
 
 #include <windows.h>
 #include <cstring>
+#include <detours.h>
 
 #pragma comment(linker, "/EXPORT:DllMain=XINPUT1_4.DllMain,@1")
 #pragma comment(linker, "/EXPORT:XInputEnable=XINPUT1_4.XInputEnable,@5")
@@ -17,6 +18,47 @@
 #pragma comment(linker, "/EXPORT:#103=XINPUT1_4.#103,@103,NONAME")
 #pragma comment(linker, "/EXPORT:#104=XINPUT1_4.#104,@104,NONAME")
 #pragma comment(linker, "/EXPORT:#108=XINPUT1_4.#108,@108,NONAME")
+
+// Our own module handle — returned to callers who try to load xinput1_4.dll at runtime.
+static HMODULE g_OldModule = nullptr;
+
+// ─── Detours: intercept LoadLibraryExW ───────────────────────────
+typedef HMODULE(WINAPI* LoadLibraryExW_t)(LPCWSTR, HANDLE, DWORD);
+static LoadLibraryExW_t oLoadLibraryExW = nullptr;
+
+HMODULE WINAPI hkLoadLibraryExW(LPCWSTR lpLibFileName, HANDLE hFile, DWORD dwFlags)
+{
+    if (lpLibFileName && g_OldModule && _wcsicmp(lpLibFileName, L"xinput1_4.dll") == 0)
+        return g_OldModule;
+    return oLoadLibraryExW(lpLibFileName, hFile, dwFlags);
+}
+
+static void InstallHook()
+{
+    oLoadLibraryExW = reinterpret_cast<LoadLibraryExW_t>(
+        GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "LoadLibraryExW"));
+    if (!oLoadLibraryExW)
+        return;
+
+    DetourTransactionBegin();
+    DetourUpdateThread(GetCurrentThread());
+    DetourAttach(reinterpret_cast<PVOID*>(&oLoadLibraryExW),
+                 reinterpret_cast<PVOID>(hkLoadLibraryExW));
+    DetourTransactionCommit();
+}
+
+static void UninstallHook()
+{
+    if (!oLoadLibraryExW)
+        return;
+
+    DetourTransactionBegin();
+    DetourUpdateThread(GetCurrentThread());
+    DetourDetach(reinterpret_cast<PVOID*>(&oLoadLibraryExW),
+                 reinterpret_cast<PVOID>(hkLoadLibraryExW));
+    DetourTransactionCommit();
+    oLoadLibraryExW = nullptr;
+}
 
 // Only inject when the host process is steam.exe (case-insensitive).
 // LoadLibraryA itself guarantees that OpenSteamTool.dll's DllMain
@@ -43,13 +85,29 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, PVOID pvReserved)
     case DLL_PROCESS_ATTACH:
         {
             DisableThreadLibraryCalls(hModule);
-            if ( !OpenSteamToolLoad() )
+
+            // Save our own handle so the hook can return it.
+            g_OldModule = hModule;
+
+            // Pin ourselves in memory — prevents FreeLibrary from unloading us
+            // and breaking the hook. FROM_ADDRESS resolves to this DLL.
+            HMODULE pinned = nullptr;
+            GetModuleHandleExW(
+                GET_MODULE_HANDLE_EX_FLAG_PIN | GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+                reinterpret_cast<LPCWSTR>(&hkLoadLibraryExW),
+                &pinned);
+
+            InstallHook();
+
+            if (!OpenSteamToolLoad())
                 return FALSE;
             break;
         }
+    case DLL_PROCESS_DETACH:
+        UninstallHook();
+        break;
     case DLL_THREAD_ATTACH:
     case DLL_THREAD_DETACH:
-    case DLL_PROCESS_DETACH:
         break;
     }
     return TRUE;

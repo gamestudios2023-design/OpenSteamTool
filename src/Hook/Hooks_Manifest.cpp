@@ -62,11 +62,13 @@ namespace {
                 DepotEntry& e = pDepotInfo->m_Memory.m_pMemory[i];
                 auto it = overrides.find(e.DepotId);
                 if (it != overrides.end()) {
+                    // if size=0 in the override, keep the original size(affects download display but not the actual download)
+                    uint64_t newSize = it->second.size ? it->second.size : e.ManifestSize;
                     LOG_MANIFEST_INFO("BuildDepotDependency: patching depot {} gid={}->{} size={}->{}",
                         e.DepotId, e.ManifestGid, it->second.gid,
-                        e.ManifestSize, it->second.size);
+                        e.ManifestSize, newSize);
                     e.ManifestGid  = it->second.gid;
-                    e.ManifestSize = it->second.size;
+                    e.ManifestSize = newSize;
                 }
             }
         }

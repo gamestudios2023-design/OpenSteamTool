@@ -21,11 +21,8 @@ namespace LuaConfig{
     };
     const std::unordered_map<uint64_t, ManifestOverride>& GetManifestOverrides();
 
-    void ParseDirectory(const std::string& directory, bool clearFirst = false);
-
-    void RefreshAppIds(const std::vector<AppId_t>& appIds);
-    void ClearAppId(AppId_t appId);
-    void ClearAllMaps();
+    void ParseFile(const std::string& filePath);
+    void ParseDirectory(const std::string& directory);
 
     bool HasManifestCodeFunc();
     bool CallManifestFetchCode(uint64_t gid, uint64_t* outCode);
