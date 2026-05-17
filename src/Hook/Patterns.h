@@ -20,7 +20,7 @@
 /* -------------------------------------------------------------------------- */
 
 inline const Signature BBuildAndAsyncSendFrameSigs[] = {
-    {"1778803745", "48 8B C4 55 48 8D 68 A1 48 81 EC C0 00 00 00"},  // beta
+    {"1778803745", "48 8B C4 55 48 8D 68 A1 48 81 EC C0 00 00 00 48 89 70 18"},  // beta
     {"1778281814", "48 8B C4 55 48 8D 68 A1 48 81 EC C0 00 00 00"},  // stable
 };
 
@@ -45,7 +45,7 @@ inline const Signature CheckAppOwnershipSigs[] = {
 };
 
 inline const Signature GetAppDataFromAppInfoSigs[] = {
-    {"1778803745", "48 89 5C 24 18 56 57 41 54 41 55 41 57 48 83 EC 20 48"},  // beta
+    {"1778803745", "40 53 55 56 57 41 56 41 57 48 81 EC 78 01 00 00 41 C6 01 00"},  // beta
     {"1778281814", "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 41 56 41 57 48 81 EC 70 01 00 00"},  // stable
 };
 
@@ -90,7 +90,7 @@ inline const Signature LoadPackageSigs[] = {
 };
 
 inline const Signature MarkLicenseAsChangedSigs[] = {
-    {"1778803745", "89 54 24 ?? 53 55 56 57 41 56 48 83 EC"},  // beta
+    {"1778803745", "48 89 5C 24 20 89 54 24 10 55 56 57 48 83 EC 20"},  // beta
     {"1778281814", "89 54 24 ?? 53 55 56 57 41 56 48 83 EC"},  // stable
 };
 
