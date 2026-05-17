@@ -35,7 +35,7 @@ inline const Signature CUtlBufferEnsureCapacitySigs[] = {
 };
 
 inline const Signature CUtlMemoryGrowSigs[] = {
-    {"1778803745", "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 30"},  // beta
+    {"1778803745", "48 89 5C 24 10 57 48 83 EC 30 8B FA 48 8B D9 8B 51 08"},  // beta
     {"1778281814", "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 30"},  // stable
 };
 
@@ -69,6 +69,16 @@ inline const Signature IPCProcessMessageSigs[] = {
     {"1778281814", "48 89 5C 24 ?? 48 89 6C 24 ?? 56 41 54 41 55 41 56 41 57 48 83 EC ?? 49 8B D9"},  // stable
 };
 
+inline const Signature KeyValues_FindOrCreateKeySigs[] = {
+    {"1778803745", "48 2B D1 F6 C1 07 74 14"},  // beta
+    {"1778281814", "48 8B C4 4C 89 48 20 57 48 81 EC 60 04 00 00 48 89 70 E8 48 8B FA"},  // stable
+};
+
+inline const Signature KeyValues_ReadAsBinarySigs[] = {
+    {"1778803745", "48 8B C4 44 88 48 20 55"},  // beta
+    {"1778281814", "48 8B C4 44 88 48 20 44 89 40 18 55 57 48 8D 68 A9 48 81 EC B8 00 00 00"},  // stable
+};
+
 inline const Signature LoadDepotDecryptionKeySigs[] = {
     {"1778803745", "40 53 55 56 57 48 83 EC 38 48 63 FA 49 8B E9"},  // beta
     {"1778281814", "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 30 48 63 FA 49 8B E9 8B D7 49 8B D8 48 8B F1"},  // stable
@@ -99,19 +109,14 @@ inline const Signature RecvPktSigs[] = {
     {"1778281814", "48 8B C4 55 48 8D A8 98 F6 FF FF 48 81 EC 60 0A"},  // stable
 };
 
+inline const Signature SendCallbackToPipeSigs[] = {
+    {"1778803745", "48 89 5C 24 ?? 57 48 83 EC ?? 41 8B D9 41 8B F8 E8 ?? ?? ?? ?? 48 8B C8"},  // beta
+    {"1778281814", "48 89 5C 24 ?? 57 48 83 EC ?? 41 8B D9 41 8B F8 E8 ?? ?? ?? ?? 48 8B C8"},  // stable
+};
+
 inline const Signature SpawnProcessSigs[] = {
     {"1778803745", "48 89 5C 24 18 4C 89 4C 24 20 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8D"},  // beta
-    {"1778281814", "48 89 5C 24 18 4C 89 4C 24 20 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 20 FF"},  // stable
-};
-
-inline const Signature KeyValues_FindOrCreateKeySigs[] = {
-    {"1778803745", "48 2B D1 F6 C1 07 74 14"},  // beta
-    {"1778281814", "48 8B C4 4C 89 48 20 57 48 81 EC 60 04 00 00 48 89 70 E8 48 8B FA"},  // stable
-};
-
-inline const Signature KeyValues_ReadAsBinarySigs[] = {
-    {"1778803745", "48 8B C4 44 88 48 20 55"},  // beta
-    {"1778281814", "48 8B C4 44 88 48 20 44 89 40 18 55 57 48 8D 68 A9 48 81 EC B8 00 00 00"},  // stable
+    {"1778281814", "48 89 5C 24 18 4C 89 4C 24 20 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8D"},  // stable
 };
 
 /* -------------------------------------------------------------------------- */
