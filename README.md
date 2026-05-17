@@ -1,5 +1,11 @@
 # OpenSteamTool
 
+![cpp](https://img.shields.io/badge/cpp-20%2B-green?logo=cplusplus)
+![CMake](https://img.shields.io/badge/CMake-3.20%2B-green?logo=cmake)
+![OnlyWindows](https://img.shields.io/badge/windows%20only-red?style=for-the-badge)
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/OpenSteam001/OpenSteamTool)
+
 OpenSteamTool is a Windows DLL project built with CMake.
 
 ## Feature
