@@ -1,7 +1,4 @@
 #include "HookManager.h"
-#include "Hooks_AccessToken.h"
-#include "Hooks_AppState.h"
-#include "Hooks_AppTicket.h"
 #include "Hooks_Decryption.h"
 #include "Hooks_IPC.h"
 #include "Hooks_KeyValues.h"
@@ -24,7 +21,6 @@ namespace SteamClient {
     }
 
     void CoreUnhook() {
-        // Hooks_AppState::Uninstall();
         Hooks_Decryption::Uninstall();
         Hooks_IPC::Uninstall();
         // Hooks_KeyValues::Uninstall();
