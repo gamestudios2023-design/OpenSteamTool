@@ -88,7 +88,7 @@ namespace {
     {
         CAppData* pData = oGetOrAddAppData(pCache, appId, bCreate);
         // LOG_MISC_TRACE("GetOrAddAppData: appId={} bCreate={} -> pData={}", appId, bCreate, pData ? pData->DebugString() : "null");
-        if (LuaConfig::HasDepot(appId) && pData && !bCreate && pData->IsUnresolvedAppInfo()) {
+        if (LuaConfig::HasDepot(appId, false) && pData && !bCreate && pData->IsUnresolvedAppInfo()) {
             LOG_MISC_DEBUG("GetOrAddAppData: Marking appId {} as skip_flag=true to bypass license update blocking", appId);
             pData->bSkipFlag = true;
         }
