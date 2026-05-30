@@ -333,6 +333,7 @@ struct CAppData
 	}
 };
 
+#pragma pack(push,1)
 struct CSteamApp
 {
 	void** fptr;
@@ -346,3 +347,4 @@ struct CSteamApp
 	uint64 SteamID;
 	uint32 PurchasedTime;
 };
+#pragma pack(pop)

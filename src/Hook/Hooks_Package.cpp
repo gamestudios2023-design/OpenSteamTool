@@ -117,10 +117,11 @@ namespace {
         TryProcessPendingLicenseRefresh();
 
         // LOG_PACKAGE_TRACE("CheckAppOwnership: AppId={} result={} {}", appId, result, pOwn->DebugString());
-        if (LuaConfig::HasDepot(appId)) {
+        if (LuaConfig::HasDepot(appId,false)) {
             if (result && pOwn->ExistInPackageNums > 1) {
                 // Actually owned — record so HasDepot excludes it going forward
                 LuaConfig::MarkOwned(appId);
+                pOwn->ReleaseState = EAppReleaseState::Released;
             } else {
                 pOwn->PackageId    = kInjectedPackageId;
                 pOwn->ReleaseState = EAppReleaseState::Released;
