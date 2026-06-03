@@ -239,8 +239,8 @@ struct ExtendedMsgHdr
 };
 #pragma pack(pop)
 
-// ── CSteamPipeClient ────────────────────────────────────────────
-struct CSteamPipeClient {
+// ── CPipeClient ────────────────────────────────────────────
+struct CPipeClient {
     void*    m_pServer;         // +0
     void*    m_pClient;         // +8
     uint32   m_hSteamPipe;      // +16
