@@ -26,6 +26,11 @@
       <img src="https://flagcdn.com/w40/es.png" width="22" alt="Spain flag">
       Español
     </a>
+    &nbsp;|&nbsp;
+    <a href="README_ZH.md">
+      <img src="https://flagcdn.com/w40/cn.png" width="22" alt="China flag">
+      中文
+    </a>
   </p>
 </div>
 
