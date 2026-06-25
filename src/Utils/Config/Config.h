@@ -21,6 +21,11 @@ namespace Config {
         std::string libraryX64;
     };
 
+    struct CloudSettings {
+        bool enabled = false;
+        std::string library;
+    };
+
     struct LoadResult {
         bool applied = false;
         bool luaPathsChanged = false;
@@ -34,6 +39,7 @@ namespace Config {
     std::vector<std::string> GetLuaPaths();
     std::string GetRemoteUrlTemplate();
     InjectionSettings GetInjectionSettings();
+    CloudSettings GetCloudSettings();
     bool GetStatsEnableApi();
 
     // [manifest] — provider selection lives in ManifestClient (table-driven).
@@ -61,5 +67,9 @@ namespace Config {
     inline bool injectEnabled = false;
     inline std::string injectLibraryX86;
     inline std::string injectLibraryX64;
+
+    // [cloud] - optional Steam Cloud save redirection via CloudRedirect.
+    inline bool cloudEnabled = false;
+    inline std::string cloudLibrary;
 
 }
