@@ -1,18 +1,22 @@
 <#
 .SYNOPSIS
-    Un seul fichier, aucun repo/zip a extraire, aucun build : active
-    CloudRedirect (sauvegardes OneDrive) sur une installation OpenSteamTool
-    deja en place.
+    Un seul fichier, aucun repo/zip a extraire soi-meme, aucun build : installe
+    OpenSteamTool (binaires precompiles officiels) et active CloudRedirect
+    (sauvegardes OneDrive).
 
 .DESCRIPTION
-    Suppose que OpenSteamTool tourne deja dans Steam (DLL deja en place).
-    Ce script fait seulement 3 choses :
-      1. Telecharge la derniere release publique de CloudRedirect.exe et en
+    Ce script fait tout, sans rien installer d'autre (pas de Visual Studio,
+    pas de compilation) :
+      1. Si OpenSteamTool.dll n'est pas deja dans Steam : telecharge le ZIP
+         precompile de la derniere release officielle
+         (github.com/OpenSteam001/OpenSteamTool/releases) et copie
+         dwmapi.dll / xinput1_4.dll / OpenSteamTool.dll dans Steam.
+      2. Telecharge la derniere release publique de CloudRedirect.exe et en
          extrait cloud_redirect.dll (ressource embarquee dans l'exe), sans
          jamais lancer son interface graphique. Le copie dans Steam.
-      2. Active "[cloud] enabled = true" dans ton opensteamtool.toml existant
-         (le modifie sans l'ecraser ; en cree un minimal s'il n'existe pas).
-      3. Si -ConnectOneDrive est passe : ouvre ton navigateur sur la vraie
+      3. Active "[cloud] enabled = true" dans opensteamtool.toml (le modifie
+         sans l'ecraser ; en cree un minimal s'il n'existe pas).
+      4. Si -ConnectOneDrive est passe : ouvre ton navigateur sur la vraie
          page de connexion Microsoft (login reel, une fois), recupere le
          token et l'enregistre chiffre (DPAPI) exactement ou cloud_redirect.dll
          l'attend.
@@ -60,6 +64,42 @@ if (-not $SteamPath) {
 $SteamPath = $SteamPath.TrimEnd('\')
 Write-Host "[INFO] Steam: $SteamPath"
 if (-not (Test-Path $SteamPath)) { throw "'$SteamPath' n'existe pas." }
+
+# ---------------------------------------------------------------------------
+# 0. OpenSteamTool lui-meme : si pas deja installe, telecharge le ZIP
+# precompile officiel (aucune compilation, juste dezipper et copier).
+# ---------------------------------------------------------------------------
+$ostDlls = @('OpenSteamTool.dll', 'dwmapi.dll', 'xinput1_4.dll')
+$ostMissing = $ostDlls | Where-Object { -not (Test-Path (Join-Path $SteamPath $_)) }
+
+if ($ostMissing) {
+    Write-Host "[INFO] OpenSteamTool absent de Steam, telechargement du ZIP precompile officiel..."
+    $ostRelease = Invoke-RestMethod -Uri 'https://api.github.com/repos/OpenSteam001/OpenSteamTool/releases/latest' `
+        -Headers @{ 'User-Agent' = 'OpenSteamTool-setup-script' }
+    $ostAsset = $ostRelease.assets |
+        Where-Object { $_.name -like '*Release*.zip' -and $_.name -notlike '*Debug*' } |
+        Select-Object -First 1
+    if (-not $ostAsset) {
+        throw "Aucun zip 'Release' trouve dans la derniere release OpenSteamTool ($($ostRelease.tag_name)). Verifie manuellement: https://github.com/OpenSteam001/OpenSteamTool/releases/latest"
+    }
+
+    $tmpZip = Join-Path $env:TEMP $ostAsset.name
+    Invoke-WebRequest -Uri $ostAsset.browser_download_url -OutFile $tmpZip
+    Write-Host "[OK] Telecharge: $($ostAsset.name)"
+
+    $tmpExtract = Join-Path $env:TEMP ("OpenSteamTool-extract-" + [guid]::NewGuid().ToString('N'))
+    Expand-Archive -Path $tmpZip -DestinationPath $tmpExtract -Force
+
+    foreach ($dll in $ostDlls) {
+        $found = Get-ChildItem -Path $tmpExtract -Filter $dll -Recurse | Select-Object -First 1
+        if (-not $found) { throw "$dll introuvable dans $($ostAsset.name) apres extraction." }
+        Copy-Item -Path $found.FullName -Destination (Join-Path $SteamPath $dll) -Force
+        Write-Host "[OK] $dll -> $SteamPath"
+    }
+    Remove-Item -Path $tmpExtract -Recurse -Force -ErrorAction SilentlyContinue
+} else {
+    Write-Host "[INFO] OpenSteamTool deja present dans Steam, rien a telecharger."
+}
 
 # ---------------------------------------------------------------------------
 # 1. cloud_redirect.dll : telecharge la derniere release CloudRedirect et
