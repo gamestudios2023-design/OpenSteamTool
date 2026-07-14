@@ -82,104 +82,48 @@ if (Test-Path $tomlPath) {
 }
 
 # ---------------------------------------------------------------------------
-# 3. Connexion OneDrive - meme flux OAuth que le companion app CloudRedirect
-# (ui/Services/OAuthService.cs) : vrai login Microsoft, chiffrement DPAPI
-# CurrentUser identique, memes emplacements de fichiers.
+# 3. Connexion OneDrive via rclone (rclone.org) - meme client OAuth par
+# defaut que celui que CloudRedirect emprunte, mais avec l'implementation
+# reelle et eprouvee de rclone plutot qu'un flux maison. Beaucoup plus
+# fiable si le navigateur bloque des redirections localhost faites main.
 # ---------------------------------------------------------------------------
 Add-Type -AssemblyName System.Security
 
-$clientId     = 'b15665d9-eda6-4092-8539-0eec376afd59'
-$clientSecret = 'qtyfaBBYA403=unZUP40~_#'
-$scope        = 'Files.ReadWrite offline_access'
-$authUrl      = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize'
-$tokenUrl     = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
-$port         = 53682
-$redirectUri  = "http://localhost:$port/"
+$rcloneDir = Join-Path $env:TEMP 'rclone-tool'
+$rcloneExe = Join-Path $rcloneDir 'rclone.exe'
 
-function New-RandomUrlSafeString([int]$Length) {
-    $bytes = New-Object byte[] $Length
-    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
-    [Convert]::ToBase64String($bytes).Replace('+','-').Replace('/','_').Replace('=','').Substring(0, $Length)
+if (-not (Test-Path $rcloneExe)) {
+    Write-Host "[INFO] Telechargement de rclone..."
+    $rcloneZipUrl = 'https://github.com/rclone/rclone/releases/download/v1.74.4/rclone-v1.74.4-windows-amd64.zip'
+    $tmpRcloneZip = Join-Path $env:TEMP 'rclone.zip'
+    Invoke-WebRequest -Uri $rcloneZipUrl -OutFile $tmpRcloneZip
+
+    $tmpRcloneExtract = Join-Path $env:TEMP ("rclone-extract-" + [guid]::NewGuid().ToString('N'))
+    Expand-Archive -Path $tmpRcloneZip -DestinationPath $tmpRcloneExtract -Force
+    $foundExe = Get-ChildItem -Path $tmpRcloneExtract -Filter 'rclone.exe' -Recurse | Select-Object -First 1
+    if (-not $foundExe) { throw "rclone.exe introuvable dans le zip telecharge." }
+    New-Item -ItemType Directory -Path $rcloneDir -Force | Out-Null
+    Copy-Item -Path $foundExe.FullName -Destination $rcloneExe -Force
+    Remove-Item -Path $tmpRcloneExtract, $tmpRcloneZip -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "[OK] rclone pret."
+} else {
+    Write-Host "[INFO] rclone deja present."
 }
-function Get-CodeChallenge([string]$Verifier) {
-    $sha256 = [System.Security.Cryptography.SHA256]::Create()
-    $hash = $sha256.ComputeHash([System.Text.Encoding]::ASCII.GetBytes($Verifier))
-    [Convert]::ToBase64String($hash).Replace('+','-').Replace('/','_').Replace('=','')
+
+Write-Host "[INFO] Lancement de 'rclone authorize onedrive' - ton navigateur va s'ouvrir, connecte-toi et clique Accepter."
+$rcloneOutput = & $rcloneExe authorize "onedrive" 2>&1 | Out-String
+
+$jsonMatch = [regex]::Match($rcloneOutput, '\{[^{}]*"access_token"[^{}]*\}')
+if (-not $jsonMatch.Success) {
+    Write-Host $rcloneOutput
+    throw "rclone n'a pas renvoye de token (sortie complete affichee ci-dessus). Annule ou echec de connexion."
 }
+$rcloneToken = $jsonMatch.Value | ConvertFrom-Json
+if (-not $rcloneToken.refresh_token) { throw "Pas de refresh_token dans la sortie rclone." }
 
-$state         = New-RandomUrlSafeString 32
-$codeVerifier  = New-RandomUrlSafeString 64
-$codeChallenge = Get-CodeChallenge $codeVerifier
-
-$authQuery = @(
-    "client_id=$([uri]::EscapeDataString($clientId))"
-    "redirect_uri=$([uri]::EscapeDataString($redirectUri))"
-    "response_type=code"
-    "scope=$([uri]::EscapeDataString($scope))"
-    "prompt=consent"
-    "state=$([uri]::EscapeDataString($state))"
-    "code_challenge=$([uri]::EscapeDataString($codeChallenge))"
-    "code_challenge_method=S256"
-) -join '&'
-$fullAuthUrl = "$authUrl`?$authQuery"
-
-$listener = New-Object System.Net.HttpListener
-$listener.Prefixes.Add($redirectUri)
-try { $listener.Start() } catch { throw "Port 53682 deja utilise par une autre appli ? $_" }
-
-Write-Host "[INFO] Ouverture du navigateur pour la connexion OneDrive..."
-try {
-    Start-Process $fullAuthUrl | Out-Null
-} catch {
-    Write-Warning "Impossible d'ouvrir le navigateur automatiquement ($_)."
-}
-Write-Host "[INFO] Si aucune fenetre ne s'est ouverte, copie-colle ce lien toi-meme dans ton navigateur :"
-Write-Host $fullAuthUrl
-Write-Host "[INFO] Connecte-toi (5 minutes max)."
-
-$code = $null
-$deadline = (Get-Date).AddMinutes(5)
-try {
-    while ((Get-Date) -lt $deadline) {
-        $asyncResult = $listener.BeginGetContext($null, $null)
-        if (-not $asyncResult.AsyncWaitHandle.WaitOne(1000)) { continue }
-        $ctx = $listener.EndGetContext($asyncResult)
-        $q = $ctx.Request.QueryString
-        $recvCode  = $q['code']; $recvState = $q['state']; $recvError = $q['error']
-        if (-not $recvCode -and -not $recvError -and -not $recvState) {
-            $ctx.Response.StatusCode = 204; $ctx.Response.Close(); continue
-        }
-        if ($recvState -ne $state) { $recvError = 'state_mismatch'; $recvCode = $null }
-        $html = if ($recvCode) {
-            '<html><body style="font-family:Segoe UI,sans-serif;text-align:center;padding:60px;background:#1e1e1e;color:#fff"><h1>Connecte !</h1><p>Tu peux fermer cette fenetre.</p></body></html>'
-        } else {
-            "<html><body style='font-family:Segoe UI,sans-serif;text-align:center;padding:60px;background:#1e1e1e;color:#fff'><h1>Echec</h1><p>Erreur: $recvError</p></body></html>"
-        }
-        $buf = [System.Text.Encoding]::UTF8.GetBytes($html)
-        $ctx.Response.ContentType = 'text/html; charset=utf-8'
-        $ctx.Response.ContentLength64 = $buf.Length
-        $ctx.Response.OutputStream.Write($buf, 0, $buf.Length)
-        $ctx.Response.Close()
-        $code = $recvCode
-        break
-    }
-} finally {
-    $listener.Stop(); $listener.Close()
-}
-if (-not $code) { throw "Pas de code recu (annule ou timeout)." }
-
-Write-Host "[OK] Code recu, echange contre les tokens..."
-$tokenBody = @{
-    code = $code; client_id = $clientId; client_secret = $clientSecret
-    redirect_uri = $redirectUri; grant_type = 'authorization_code'
-    scope = $scope; code_verifier = $codeVerifier
-}
-$tokenResp = Invoke-RestMethod -Method Post -Uri $tokenUrl -Body $tokenBody -ContentType 'application/x-www-form-urlencoded'
-if (-not $tokenResp.refresh_token) { throw "Pas de refresh_token recu - reessaie." }
-
-$expiresAt = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + [int64]$tokenResp.expires_in
+$expiresAt = [long][DateTimeOffset]::Parse($rcloneToken.expiry).ToUnixTimeSeconds()
 $tokenJson = [ordered]@{
-    access_token = $tokenResp.access_token; refresh_token = $tokenResp.refresh_token; expires_at = $expiresAt
+    access_token = $rcloneToken.access_token; refresh_token = $rcloneToken.refresh_token; expires_at = $expiresAt
 } | ConvertTo-Json
 
 $configDir = Join-Path $env:APPDATA 'CloudRedirect'
