@@ -35,3 +35,18 @@ jobs:
           name: cloud_redirect-s3-dll
           path: third_party/CloudRedirect/build/Release/cloud_redirect.dll
           retention-days: 7
+
+      - name: Publish stable download (GitHub Release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: s3-dll-latest
+          name: cloud_redirect.dll (S3/Backblaze fork, latest)
+          body: |
+            Auto-published by .github/workflows/build_cloud_redirect_s3.yml.
+            Not an official CloudRedirect release - a personal fork with an
+            added S3-compatible provider. This tag is overwritten on every
+            build; the asset URL below stays stable.
+          files: third_party/CloudRedirect/build/Release/cloud_redirect.dll
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
