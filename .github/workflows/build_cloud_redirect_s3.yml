@@ -24,7 +24,7 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure
-        run: cmake -S third_party/CloudRedirect -B third_party/CloudRedirect/build -G "Visual Studio 17 2022" -A x64
+        run: cmake -S third_party/CloudRedirect -B third_party/CloudRedirect/build -G "Ninja Multi-Config"
 
       - name: Build cloud_redirect.dll
         run: cmake --build third_party/CloudRedirect/build --config Release --target cloud_redirect
