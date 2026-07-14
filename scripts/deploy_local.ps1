@@ -7,9 +7,17 @@
     - Detecte (ou prend en parametre) le dossier d'installation Steam.
     - Copie OpenSteamTool.dll, dwmapi.dll, xinput1_4.dll depuis build/<Config>.
     - Copie cloud_redirect.dll si -CloudRedirectDll est fourni.
-    - Copie ton token/config CloudRedirect deja authentifie si -CloudRedirectTokenSrc
-      est fourni (evite de te reconnecter a OneDrive sur chaque PC).
     - Genere opensteamtool.toml a partir d'un template + de ta liste d'AppId.
+
+    NOTE : la connexion OneDrive/Google Drive (CloudRedirect) NE PEUT PAS etre
+    automatisee entre plusieurs PC. CloudRedirect chiffre son token avec la
+    DPAPI Windows en mode DataProtectionScope.CurrentUser (voir
+    ui/Services/OAuthService.cs + src/platform/win/dpapi_util.h dans le repo
+    CloudRedirect) : la cle de dechiffrement est liee a ton compte Windows sur
+    CETTE machine precise. Copier %AppData%\CloudRedirect\ vers un autre PC
+    donnera un echec de dechiffrement ("wrong user or corrupted"). Il faut
+    donc relancer CloudRedirect.exe -> onglet Cloud Provider -> se reconnecter,
+    une fois par PC. Ce script ne tente pas de contourner ca.
     - Copie tes scripts Lua vers <Steam>\config\lua.
 
 .PARAMETER SteamPath
@@ -25,12 +33,10 @@
     Dossier local contenant tes .lua a deployer (addappid, setStat, etc.).
 
 .PARAMETER CloudRedirectDll
-    Chemin vers cloud_redirect.dll deja telecharge (optionnel).
-
-.PARAMETER CloudRedirectTokenSrc
-    Dossier contenant le token/config CloudRedirect deja authentifie sur ce
-    PC, a copier tel quel sur un nouveau PC (optionnel). VOIR NOTE plus bas :
-    le chemin exact depend de CloudRedirect (projet externe, pas verifie ici).
+    Chemin vers cloud_redirect.dll deja telecharge (optionnel). La connexion
+    OneDrive/Google Drive elle-meme reste manuelle sur chaque PC (voir NOTE
+    ci-dessus) - ce parametre ne fait que placer le DLL et activer [cloud]
+    dans le toml.
 
 .EXAMPLE
     .\deploy_local.ps1 -RepoRoot C:\dev\OpenSteamTool -LuaSourceDir C:\dev\my-lua `
@@ -45,8 +51,7 @@ param(
     [Parameter(Mandatory)]
     [string]$RepoRoot,
     [string]$LuaSourceDir,
-    [string]$CloudRedirectDll,
-    [string]$CloudRedirectTokenSrc
+    [string]$CloudRedirectDll
 )
 
 $ErrorActionPreference = 'Stop'
@@ -108,20 +113,6 @@ if ($CloudRedirectDll) {
     $cloudEnabled = $true
 }
 
-if ($CloudRedirectTokenSrc) {
-    # NOTE: chemin de destination a adapter une fois que tu as verifie ou
-    # CloudRedirect (projet externe) stocke reellement son token/config sur
-    # une machine deja connectee (ex: %APPDATA%\CloudRedirect ou
-    # %LOCALAPPDATA%\CloudRedirect). Ceci copie tel quel sans le deviner.
-    if (-not (Test-Path $CloudRedirectTokenSrc)) {
-        throw "Dossier token CloudRedirect introuvable: $CloudRedirectTokenSrc"
-    }
-    $tokenDest = Join-Path $env:APPDATA 'CloudRedirect'
-    Write-Warning "Destination token CloudRedirect non verifiee (placeholder: $tokenDest). Adapte cette ligne apres avoir confirme le vrai chemin."
-    Copy-Item -Path $CloudRedirectTokenSrc -Destination $tokenDest -Recurse -Force
-    Write-Host "[OK] Token CloudRedirect copie -> $tokenDest"
-}
-
 # ---------------------------------------------------------------------------
 # 3. opensteamtool.toml
 # ---------------------------------------------------------------------------
@@ -153,6 +144,6 @@ if ($LuaSourceDir) {
 }
 
 Write-Host "[DONE] Deploiement termine sur ce PC."
-if ($CloudRedirectDll -and -not $CloudRedirectTokenSrc) {
-    Write-Host "[NEXT] Lance CloudRedirect.exe (companion app) et connecte-toi a ton compte cloud sur ce PC."
+if ($CloudRedirectDll) {
+    Write-Host "[NEXT] Lance CloudRedirect.exe (companion app) -> onglet Cloud Provider -> connecte-toi sur ce PC (etape manuelle, non automatisable - voir DPAPI)."
 }
