@@ -1,58 +1,72 @@
 <#
 .SYNOPSIS
-    Deploie OpenSteamTool (+ CloudRedirect en option) sur ce PC, pour un usage
-    personnel.
+    Deploie OpenSteamTool (+ CloudRedirect en option) sur ce PC en une seule
+    commande : installe les outils de build manquants si besoin, compile,
+    recupere cloud_redirect.dll, configure, et connecte OneDrive.
 
 .DESCRIPTION
     - Detecte (ou prend en parametre) le dossier d'installation Steam.
-    - Copie OpenSteamTool.dll, dwmapi.dll, xinput1_4.dll depuis build/<Config>.
-    - Copie cloud_redirect.dll si -CloudRedirectDll est fourni.
+    - Si build\<Config>\OpenSteamTool.dll n'existe pas encore :
+        - Verifie la presence d'un compilateur C++ (Visual Studio/Build Tools)
+          et de CMake ; les installe via winget si absents (Microsoft.
+          VisualStudio.2022.BuildTools + workload C++, et Kitware.CMake).
+        - Lance cmake configure + build (equivalent de build.bat).
+      Ceci est la seule etape qui prend du temps et un peu de bande passante
+      (premiere fois seulement) : compiler du C++ necessite un vrai
+      compilateur, il n'existe pas de binaire OpenSteamTool precompile
+      publie pour ce repo.
+    - Copie OpenSteamTool.dll, dwmapi.dll, xinput1_4.dll vers Steam.
+    - Si -CloudRedirectDll n'est pas fourni : telecharge automatiquement la
+      derniere release publique de CloudRedirect.exe
+      (github.com/Selectively11/CloudRedirect), puis en extrait
+      cloud_redirect.dll (ressource embarquee dans l'exe, cf.
+      ui/Services/EmbeddedDll.cs du repo CloudRedirect) sans jamais lancer
+      l'interface graphique. Sinon utilise le chemin fourni.
     - Genere opensteamtool.toml a partir d'un template + de ta liste d'AppId.
     - Copie tes scripts Lua vers <Steam>\config\lua.
-    - Si -ConnectOneDrive est passe : lance directement le flux de connexion
-      OneDrive (meme echange OAuth que le companion app CloudRedirect, code
-      reimplemente ici en PowerShell a partir de
-      ui/Services/OAuthService.cs du repo CloudRedirect - pas besoin de
-      builder/telecharger CloudRedirect.exe, et aucun appel reseau vers
-      GitHub n'est fait par ce script). Ca ouvre ton navigateur sur la vraie
-      page de connexion Microsoft, attend que tu te connectes, recupere le
-      token et l'enregistre chiffre (DPAPI) exactement au meme endroit et
-      dans le meme format que l'appli officielle, pour que cloud_redirect.dll
-      le lise sans rien reconfigurer.
+    - Si -ConnectOneDrive est passe : lance le flux de connexion OneDrive
+      (meme echange OAuth que le companion app CloudRedirect, reimplemente
+      ici en PowerShell - voir plus bas). Ouvre ton navigateur sur la vraie
+      page de connexion Microsoft, attend que tu te connectes, enregistre le
+      token chiffre (DPAPI) exactement ou cloud_redirect.dll l'attend.
 
-    NOTE IMPORTANTE : cette connexion reste, par construction, une action
-    manuelle A FAIRE UNE FOIS PAR PC (vrai login Microsoft dans le
-    navigateur, avec TON compte). Le script te l'ouvre et automatise tout le
-    reste autour, mais ne peut pas "la faire a ta place" ni la transferer
-    vers un autre PC : le token est ensuite chiffre avec la DPAPI Windows en
-    DataProtectionScope.CurrentUser, liee a ton compte Windows sur CETTE
-    machine precise (voir src/platform/win/dpapi_util.h dans le repo
-    CloudRedirect) - le copier ailleurs echouerait au dechiffrement. Sur un
-    autre PC, relance ce script avec -ConnectOneDrive pour refaire la
-    connexion la-bas aussi (30 secondes, un login).
+    CE QUI RESTE, PAR NATURE, IMPOSSIBLE A AUTOMATISER :
+    - La toute premiere compilation demande de telecharger un compilateur
+      (plusieurs Go) si tu n'en as pas deja un - ce n'est pas ce script qui
+      choisit ça, c'est juste ce qu'il faut pour compiler du C++. Une fois
+      fait, les executions suivantes sautent cette etape (le DLL existe deja).
+    - La connexion OneDrive elle-meme reste un vrai login Microsoft dans le
+      navigateur, avec TON compte, refait une fois par PC (le token est
+      chiffre en DPAPI DataProtectionScope.CurrentUser, lie a ce compte
+      Windows sur cette machine precise - le copier ailleurs echoue au
+      dechiffrement, voir src/platform/win/dpapi_util.h du repo CloudRedirect).
 
 .PARAMETER SteamPath
     Dossier racine Steam. Auto-detecte via le registre si omis.
 
 .PARAMETER BuildConfig
-    Release ou Debug (doit correspondre a ce que build.bat a compile).
+    Release ou Debug.
 
 .PARAMETER RepoRoot
-    Racine du repo OpenSteamTool (contient build\, opensteamtool.example.toml).
+    Racine des sources OpenSteamTool (contient src\, opensteamtool.example.toml).
 
 .PARAMETER LuaSourceDir
     Dossier local contenant tes .lua a deployer (addappid, setStat, etc.).
 
 .PARAMETER CloudRedirectDll
-    Chemin vers cloud_redirect.dll deja telecharge (optionnel). Place le DLL
-    et active [cloud] dans le toml.
+    Chemin vers cloud_redirect.dll deja obtenu (optionnel). Si omis et que
+    -ConnectOneDrive (ou -EnableCloud) est demande, le script le telecharge
+    et l'extrait lui-meme depuis la derniere release CloudRedirect.
+
+.PARAMETER EnableCloud
+    Active [cloud] et recupere cloud_redirect.dll meme sans -ConnectOneDrive
+    (utile si tu veux juste deployer le DLL et te connecter plus tard).
 
 .PARAMETER ConnectOneDrive
-    Lance le flux de connexion OneDrive decrit ci-dessus.
+    Lance le flux de connexion OneDrive decrit ci-dessus (implique -EnableCloud).
 
 .EXAMPLE
-    .\deploy_local.ps1 -RepoRoot C:\dev\OpenSteamTool -LuaSourceDir C:\dev\my-lua `
-        -CloudRedirectDll C:\Downloads\cloud_redirect.dll -ConnectOneDrive
+    .\deploy_local.ps1 -RepoRoot C:\dev\OpenSteamTool -LuaSourceDir C:\dev\my-lua -ConnectOneDrive
 #>
 
 [CmdletBinding()]
@@ -64,11 +78,16 @@ param(
     [string]$RepoRoot,
     [string]$LuaSourceDir,
     [string]$CloudRedirectDll,
+    [switch]$EnableCloud,
     [switch]$ConnectOneDrive
 )
 
 $ErrorActionPreference = 'Stop'
+if ($ConnectOneDrive) { $EnableCloud = $true }
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 function Get-SteamInstallPath {
     $regPaths = @(
         'HKCU:\Software\Valve\Steam',
@@ -83,6 +102,77 @@ function Get-SteamInstallPath {
         }
     }
     return $null
+}
+
+function Test-BuildToolsPresent {
+    if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) { return $false }
+    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not (Test-Path $vswhere)) { return $false }
+    $vsInstall = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    return [bool]$vsInstall
+}
+
+function Install-BuildTools {
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        throw "winget introuvable. Installe manuellement CMake et 'Desktop development with C++' (Visual Studio Build Tools 2022), puis relance."
+    }
+    Write-Host "[INFO] Compilateur/CMake absents - installation via winget (peut prendre plusieurs minutes, plusieurs Go)..."
+    winget install --id Kitware.CMake -e --silent --accept-package-agreements --accept-source-agreements
+    winget install --id Microsoft.VisualStudio.2022.BuildTools -e --silent --accept-package-agreements --accept-source-agreements `
+        --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+    # Refresh PATH for this session (winget/VS installers update the machine PATH, not this process's).
+    $env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User')
+    if (-not (Test-BuildToolsPresent)) {
+        throw "L'installation des outils de build a echoue ou necessite un redemarrage du terminal/PC. Relance ce script dans un nouveau terminal apres l'installation."
+    }
+    Write-Host "[OK] Outils de build installes."
+}
+
+function Build-OpenSteamTool([string]$RepoRoot, [string]$Config) {
+    if (-not (Test-BuildToolsPresent)) {
+        Install-BuildTools
+    }
+    Write-Host "[INFO] Configuration CMake..."
+    cmake -S (Join-Path $RepoRoot 'src') -B (Join-Path $RepoRoot 'build') -G "Visual Studio 17 2022" -A x64
+    if ($LASTEXITCODE -ne 0) { throw "cmake (configure) a echoue." }
+    Write-Host "[INFO] Compilation ($Config)..."
+    cmake --build (Join-Path $RepoRoot 'build') --config $Config
+    if ($LASTEXITCODE -ne 0) { throw "cmake --build a echoue." }
+    Write-Host "[OK] Build termine."
+}
+
+# ---------------------------------------------------------------------------
+# Recupere cloud_redirect.dll depuis la derniere release publique de
+# CloudRedirect, en l'extrayant de l'exe (ressource embarquee), sans lancer
+# l'interface graphique. Cf. ui/Services/EmbeddedDll.cs dans ce repo :
+# la ressource s'appelle "cloud_redirect.dll".
+# ---------------------------------------------------------------------------
+function Get-CloudRedirectDllFromRelease([string]$DestPath) {
+    Write-Host "[INFO] Recuperation de cloud_redirect.dll depuis la derniere release CloudRedirect..."
+    $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/Selectively11/CloudRedirect/releases/latest' `
+        -Headers @{ 'User-Agent' = 'OpenSteamTool-deploy-script' }
+    $asset = $release.assets | Where-Object { $_.name -like '*.exe' } | Select-Object -First 1
+    if (-not $asset) { throw "Aucun .exe trouve dans la derniere release CloudRedirect." }
+
+    $tmpExe = Join-Path $env:TEMP $asset.name
+    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmpExe
+    Write-Host "[OK] Telecharge: $($asset.name)"
+
+    try {
+        $asm = [System.Reflection.Assembly]::LoadFrom($tmpExe)
+        $stream = $asm.GetManifestResourceStream('cloud_redirect.dll')
+        if (-not $stream) {
+            throw "Ressource 'cloud_redirect.dll' introuvable dans $($asset.name) (nom de ressource peut avoir change en amont)."
+        }
+        $ms = New-Object System.IO.MemoryStream
+        $stream.CopyTo($ms)
+        [System.IO.File]::WriteAllBytes($DestPath, $ms.ToArray())
+        Write-Host "[OK] cloud_redirect.dll extrait -> $DestPath"
+    } catch {
+        throw "Extraction automatique de cloud_redirect.dll echouee ($_). Solution de secours: telecharge $($asset.browser_download_url) toi-meme, lance-le, fais Setup -> Run All Patches, puis relance ce script avec -CloudRedirectDll pointant vers le fichier qu'il a deploye."
+    } finally {
+        if ($stream) { $stream.Dispose() }
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -232,6 +322,9 @@ function Connect-OneDriveCloudRedirect {
     Write-Host "[OK] Config CloudRedirect enregistree -> $configPath"
 }
 
+# ---------------------------------------------------------------------------
+# 0. Steam path
+# ---------------------------------------------------------------------------
 if (-not $SteamPath) {
     $SteamPath = Get-SteamInstallPath
     if (-not $SteamPath) {
@@ -244,17 +337,25 @@ Write-Host "[INFO] Steam install path: $SteamPath"
 if (-not (Test-Path $SteamPath)) {
     throw "Le dossier Steam '$SteamPath' n'existe pas."
 }
+if (-not (Test-Path (Join-Path $RepoRoot 'src'))) {
+    throw "'$RepoRoot' ne ressemble pas aux sources OpenSteamTool (pas de dossier 'src'). Extrais d'abord le zip des sources ici."
+}
 
 # ---------------------------------------------------------------------------
-# 1. Copier les DLL compilees
+# 1. Build si necessaire, puis copier les DLL compilees
 # ---------------------------------------------------------------------------
 $buildDir = Join-Path $RepoRoot "build\$BuildConfig"
 $dlls = @('OpenSteamTool.dll', 'dwmapi.dll', 'xinput1_4.dll')
+$needsBuild = $dlls | ForEach-Object { -not (Test-Path (Join-Path $buildDir $_)) } | Where-Object { $_ } | Select-Object -First 1
+
+if ($needsBuild) {
+    Build-OpenSteamTool -RepoRoot $RepoRoot -Config $BuildConfig
+}
 
 foreach ($dll in $dlls) {
     $src = Join-Path $buildDir $dll
     if (-not (Test-Path $src)) {
-        throw "Introuvable: $src (as-tu bien lance build.bat avec CONFIGS incluant '$BuildConfig' ?)"
+        throw "Introuvable meme apres build: $src"
     }
     Copy-Item -Path $src -Destination (Join-Path $SteamPath $dll) -Force
     Write-Host "[OK] Copie $dll -> $SteamPath"
@@ -264,12 +365,15 @@ foreach ($dll in $dlls) {
 # 2. CloudRedirect (optionnel)
 # ---------------------------------------------------------------------------
 $cloudEnabled = $false
-if ($CloudRedirectDll) {
-    if (-not (Test-Path $CloudRedirectDll)) {
-        throw "cloud_redirect.dll introuvable: $CloudRedirectDll"
+if ($EnableCloud) {
+    $destDll = Join-Path $SteamPath 'cloud_redirect.dll'
+    if ($CloudRedirectDll) {
+        if (-not (Test-Path $CloudRedirectDll)) { throw "cloud_redirect.dll introuvable: $CloudRedirectDll" }
+        Copy-Item -Path $CloudRedirectDll -Destination $destDll -Force
+        Write-Host "[OK] Copie cloud_redirect.dll -> $SteamPath"
+    } else {
+        Get-CloudRedirectDllFromRelease -DestPath $destDll
     }
-    Copy-Item -Path $CloudRedirectDll -Destination (Join-Path $SteamPath 'cloud_redirect.dll') -Force
-    Write-Host "[OK] Copie cloud_redirect.dll -> $SteamPath"
     $cloudEnabled = $true
 }
 
@@ -307,9 +411,6 @@ if ($LuaSourceDir) {
 # 5. Connexion OneDrive (optionnel)
 # ---------------------------------------------------------------------------
 if ($ConnectOneDrive) {
-    if (-not $cloudEnabled) {
-        Write-Warning "-ConnectOneDrive demande mais -CloudRedirectDll n'a pas ete fourni: cloud_redirect.dll ne sera pas charge par OpenSteamTool tant qu'il n'est pas en place."
-    }
     Connect-OneDriveCloudRedirect
 }
 
