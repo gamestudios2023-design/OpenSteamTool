@@ -128,8 +128,14 @@ $listener.Prefixes.Add($redirectUri)
 try { $listener.Start() } catch { throw "Port 53682 deja utilise par une autre appli ? $_" }
 
 Write-Host "[INFO] Ouverture du navigateur pour la connexion OneDrive..."
-Start-Process $fullAuthUrl | Out-Null
-Write-Host "[INFO] Connecte-toi dans la fenetre qui vient de s'ouvrir (5 minutes max)."
+try {
+    Start-Process $fullAuthUrl | Out-Null
+} catch {
+    Write-Warning "Impossible d'ouvrir le navigateur automatiquement ($_)."
+}
+Write-Host "[INFO] Si aucune fenetre ne s'est ouverte, copie-colle ce lien toi-meme dans ton navigateur :"
+Write-Host $fullAuthUrl
+Write-Host "[INFO] Connecte-toi (5 minutes max)."
 
 $code = $null
 $deadline = (Get-Date).AddMinutes(5)
