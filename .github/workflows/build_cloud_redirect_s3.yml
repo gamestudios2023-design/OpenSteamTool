@@ -1,0 +1,37 @@
+name: Build CloudRedirect (S3 fork)
+
+# Personal build helper: compiles the S3/Backblaze-enabled fork of
+# CloudRedirect vendored under third_party/CloudRedirect/, and uploads
+# cloud_redirect.dll as a downloadable artifact. Not part of the
+# OpenSteamTool product build.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [claude/salit-kt7np0]
+    paths:
+      - 'third_party/CloudRedirect/**'
+      - '.github/workflows/build_cloud_redirect_s3.yml'
+
+jobs:
+  build:
+    name: Build cloud_redirect.dll (Release)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure
+        run: cmake -S third_party/CloudRedirect -B third_party/CloudRedirect/build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build cloud_redirect.dll
+        run: cmake --build third_party/CloudRedirect/build --config Release --target cloud_redirect
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud_redirect-s3-dll
+          path: third_party/CloudRedirect/build/Release/cloud_redirect.dll
+          retention-days: 7
