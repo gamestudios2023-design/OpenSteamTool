@@ -55,7 +55,7 @@ if ($ostMissing) {
 # pas besoin d'exe/extraction).
 # ---------------------------------------------------------------------------
 Write-Host "[INFO] Telechargement de cloud_redirect.dll..."
-$crUrl = 'https://github.com/Selectively11/CloudRedirect/releases/download/v2.5.4/cloud_redirect.dll'
+$crUrl = 'https://release-assets.githubusercontent.com/github-production-release-asset/1198768370/910e58fa-9ae9-4288-8f80-cef68ff89c8b?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-07-14T16%3A56%3A46Z&rscd=attachment%3B+filename%3Dcloud_redirect.dll&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2026-07-14T15%3A56%3A46Z&ske=2026-07-14T16%3A56%3A46Z&sks=b&skv=2018-11-09&sig=xWEpeKDZsWxwXskbQ3YQUeYeKDYB0xxaurl2dm2cYNI%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc4NDA0NjQzNCwibmJmIjoxNzg0MDQ2MTM0LCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.L1-M4k5IX01pwJOcdzbs5MbscjHcm2kp1hkvDpGrqBw&response-content-disposition=attachment%3B%20filename%3Dcloud_redirect.dll&response-content-type=application%2Foctet-stream'
 $destDll = Join-Path $SteamPath 'cloud_redirect.dll'
 Invoke-WebRequest -Uri $crUrl -OutFile $destDll
 Write-Host "[OK] cloud_redirect.dll -> $destDll"
