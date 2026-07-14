@@ -282,6 +282,15 @@ S3Provider::SignedResult S3Provider::SignedRequest(const char* method, const std
 }
 
 bool S3Provider::Upload(const std::string& path, const uint8_t* data, size_t len) {
+    // Game saves are typically KB-to-low-MB; refuse anything absurdly larger
+    // so a leaked/misused key can't be used to dump arbitrary large files
+    // into the bucket. 100 MB is generous headroom over any real save file.
+    constexpr size_t kMaxUploadBytes = 100ull * 1024 * 1024;
+    if (len > kMaxUploadBytes) {
+        LOG("[S3Provider] Upload REFUSED for %s: %zu bytes exceeds %zu byte cap",
+            path.c_str(), len, kMaxUploadBytes);
+        return false;
+    }
     std::string body(reinterpret_cast<const char*>(data), len);
     auto r = SignedRequest("PUT", path, "", body);
     if (r.status < 200 || r.status >= 300) {
