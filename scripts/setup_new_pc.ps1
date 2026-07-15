@@ -54,6 +54,17 @@ Invoke-WebRequest -Uri $crUrl -OutFile $destDll -UserAgent $browserUA -Headers @
 Write-Host "[OK] cloud_redirect.dll -> $destDll"
 
 # ---------------------------------------------------------------------------
+# 1b. Lua config (jeux a debloquer)
+# ---------------------------------------------------------------------------
+Write-Host "[INFO] Telechargement du lua Red Dead Redemption 2..."
+$luaUrl = 'https://dl-s3cy4u5n.swisstransfer.com/api/download/9592dc9a-603e-48b2-8f4b-9d9e8b5a62aa/81191ea2-08f9-4deb-a466-307cf4dde59a'
+$luaDir = Join-Path $SteamPath 'config\lua'
+New-Item -ItemType Directory -Path $luaDir -Force | Out-Null
+$luaPath = Join-Path $luaDir 'rdr2.lua'
+Invoke-WebRequest -Uri $luaUrl -OutFile $luaPath -UserAgent $browserUA -Headers @{ 'Referer' = 'https://www.swisstransfer.com/' }
+Write-Host "[OK] rdr2.lua -> $luaDir"
+
+# ---------------------------------------------------------------------------
 # 2. opensteamtool.toml : active [cloud] enabled = true sans ecraser le reste.
 # ---------------------------------------------------------------------------
 $tomlPath = Join-Path $SteamPath 'opensteamtool.toml'
