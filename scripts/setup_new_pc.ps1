@@ -27,9 +27,10 @@ Write-Host "[INFO] Steam: $SteamPath"
 # 0. OpenSteamTool
 # ---------------------------------------------------------------------------
 Write-Host "[INFO] Telechargement d'OpenSteamTool..."
-$ostUrl = 'https://release-assets.githubusercontent.com/github-production-release-asset/1219526865/a9b329ca-f260-497e-a12c-75025624d60c?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-07-14T14%3A10%3A28Z&rscd=attachment%3B+filename%3DOpenSteamTool-1.4.8-Debug.zip&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2026-07-14T13%3A10%3A25Z&ske=2026-07-14T14%3A10%3A28Z&sks=b&skv=2018-11-09&sig=ZGc7%2FaUN8cMp9aChsaYStwCiZwvsE07cMBMkjs4iTjI%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc4NDAzNjczNCwibmJmIjoxNzg0MDM0OTM0LCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.XJkj0e6JP6e81zqKCTEa5zmhjsZa-Pznuu9o_rSEOA4&response-content-disposition=attachment%3B%20filename%3DOpenSteamTool-1.4.8-Debug.zip&response-content-type=application%2Foctet-stream'
-$tmpZip = Join-Path $env:TEMP 'OpenSteamTool-1.4.8-Debug.zip'
-Invoke-WebRequest -Uri $ostUrl -OutFile $tmpZip
+$browserUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+$ostUrl = 'https://dl-29vb9178.swisstransfer.com/api/download/d58cba7f-7fb2-41f6-9ab4-a911897cdd6b/93804f8d-c72b-4634-8793-277bd86b0060'
+$tmpZip = Join-Path $env:TEMP 'OpenSteamTool.zip'
+Invoke-WebRequest -Uri $ostUrl -OutFile $tmpZip -UserAgent $browserUA -Headers @{ 'Referer' = 'https://www.swisstransfer.com/' }
 Write-Host "[OK] Telecharge."
 
 $tmpExtract = Join-Path $env:TEMP ("OpenSteamTool-extract-" + [guid]::NewGuid().ToString('N'))
@@ -47,9 +48,9 @@ Remove-Item -Path $tmpExtract -Recurse -Force -ErrorAction SilentlyContinue
 # 1. cloud_redirect.dll (version personnalisee avec support Backblaze S3)
 # ---------------------------------------------------------------------------
 Write-Host "[INFO] Telechargement de cloud_redirect.dll (version S3)..."
-$crUrl = 'https://claude.ai/api/organizations/f226b83a-4059-45e6-a322-b4701d0270d5/files/85749eee-e896-4ae0-9586-6b6cc6f77d3b/contents'
+$crUrl = 'https://dl-bkgz5xt6.swisstransfer.com/api/download/4c6d172a-1a8e-4cae-80aa-87be3b138cb9/f6bfa8cc-3604-4291-bf2d-3828e213dcdf'
 $destDll = Join-Path $SteamPath 'cloud_redirect.dll'
-Invoke-WebRequest -Uri $crUrl -OutFile $destDll
+Invoke-WebRequest -Uri $crUrl -OutFile $destDll -UserAgent $browserUA -Headers @{ 'Referer' = 'https://www.swisstransfer.com/' }
 Write-Host "[OK] cloud_redirect.dll -> $destDll"
 
 # ---------------------------------------------------------------------------
